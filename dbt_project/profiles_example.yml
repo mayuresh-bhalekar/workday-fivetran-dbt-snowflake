@@ -8,33 +8,33 @@ workday_hr_analytics:
 
     dev:
       type: snowflake
-      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
-      user: "{{ env_var('SNOWFLAKE_USER') }}"
-      authenticator: externalbrowser   # or 'snowflake' + password / key-pair for service accounts
-      role: DBT_TRANSFORMER
-      database: HR_ANALYTICS
-      warehouse: WH_DBT_TRANSFORM
-      schema: dev_yourname            # personal dev schema, e.g. dev_priya
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT', 'your_account_identifier') }}"
+      user: "{{ env_var('SNOWFLAKE_USER', 'your_user') }}"
+      authenticator: "{{ env_var('SNOWFLAKE_AUTHENTICATOR', 'externalbrowser') }}"  # or 'snowflake' + password / key-pair for service accounts
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'DBT_TRANSFORMER') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'HR_ANALYTICS') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'WH_DBT_TRANSFORM') }}"
+      schema: "{{ env_var('SNOWFLAKE_SCHEMA', 'dev_yourname') }}"  # personal dev schema, e.g. dev_priya
       threads: 4
 
     ci:
       type: snowflake
-      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
-      user: "{{ env_var('SNOWFLAKE_CI_USER') }}"
-      private_key: "{{ env_var('SNOWFLAKE_CI_PRIVATE_KEY') }}"   # key-pair auth for CI
-      role: DBT_TRANSFORMER
-      database: HR_ANALYTICS_CI
-      warehouse: WH_DBT_TRANSFORM
-      schema: ci
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT', 'your_account_identifier') }}"
+      user: "{{ env_var('SNOWFLAKE_CI_USER', 'your_ci_user') }}"
+      private_key: "{{ env_var('SNOWFLAKE_CI_PRIVATE_KEY', '') }}"  # key-pair auth for CI
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'DBT_TRANSFORMER') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'HR_ANALYTICS_CI') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'WH_DBT_TRANSFORM') }}"
+      schema: "{{ env_var('SNOWFLAKE_CI_SCHEMA', 'ci') }}"
       threads: 4
 
     prod:
       type: snowflake
-      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
-      user: "{{ env_var('SNOWFLAKE_PROD_USER') }}"
-      private_key: "{{ env_var('SNOWFLAKE_PROD_PRIVATE_KEY') }}"
-      role: DBT_TRANSFORMER
-      database: HR_ANALYTICS
-      warehouse: WH_DBT_TRANSFORM
-      schema: prod   # overridden per-model by macros/generate_schema_name.sql
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT', 'your_account_identifier') }}"
+      user: "{{ env_var('SNOWFLAKE_PROD_USER', 'your_prod_user') }}"
+      private_key: "{{ env_var('SNOWFLAKE_PROD_PRIVATE_KEY', '') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'DBT_TRANSFORMER') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'HR_ANALYTICS') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'WH_DBT_TRANSFORM') }}"
+      schema: "{{ env_var('SNOWFLAKE_PROD_SCHEMA', 'prod') }}"  # overridden per-model by macros/generate_schema_name.sql
       threads: 8

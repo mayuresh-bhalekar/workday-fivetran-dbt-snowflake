@@ -6,3 +6,4 @@ dbt_project/profiles.yml
 __pycache__/
 .DS_Store
 *.pyc
+.env
