@@ -6,7 +6,13 @@ This repo is a **portfolio/demo project**. It ships realistic (synthetic) Workda
 
 ---
 
-## 1. Architecture
+## 1. The business problem
+
+HR and payroll data lives inside Workday, an operational system built for transaction processing, not for cross-domain analysis. Questions like *"which departments are driving overtime costs,"* *"who was this employee's manager on the date of a comp change,"* or *"does our payroll register reconcile to the general ledger"* require joining across HCM, Time Tracking, Payroll, and Benefits — objects that Workday exposes as separate, effective-dated reports, not a queryable warehouse.
+
+This project solves that by building the pipeline that turns Workday into a governed analytics layer: replicate Workday's domains into Snowflake automatically (Fivetran), model them into a conformed, tested **Kimball star schema** (dbt), and preserve history correctly — so an employee's job, manager, and comp band as of *any past date* can still be reconstructed, not just their current state. The result is a warehouse a BI tool or analyst can query directly, with payroll figures precise enough to reconcile to the register.
+
+## 2. Architecture
 
 ```mermaid
 flowchart LR
@@ -49,7 +55,7 @@ flowchart LR
     class BI bi;
 ```
 
-Orchestrated end-to-end by `dbt build` (`seed → snapshot → run → test`), gated in CI on every pull request (see [§3 Quickstart](#3-quickstart) and [`.github/workflows/dbt_ci.yml`](.github/workflows/dbt_ci.yml)).
+Orchestrated end-to-end by `dbt build` (`seed → snapshot → run → test`), gated in CI on every pull request (see [§6 Quickstart](#6-quickstart) and [`.github/workflows/dbt_ci.yml`](.github/workflows/dbt_ci.yml)).
 
 **Data flow contract**
 
@@ -62,7 +68,7 @@ Orchestrated end-to-end by `dbt build` (`seed → snapshot → run → test`), g
 
 See [`docs/architecture.md`](docs/architecture.md) for the full write-up (source domains, Fivetran connector behavior, SCD strategy, warehouse sizing, governance) and [`docs/data_dictionary.md`](docs/data_dictionary.md) for the Workday field → dbt model mapping.
 
-## 2. Repo layout
+## 3. Repo layout
 
 ```
 workday-fivetran-dbt-snowflake/
@@ -90,7 +96,29 @@ workday-fivetran-dbt-snowflake/
 └── .github/workflows/            # CI: sqlfluff lint + dbt build (on PR)
 ```
 
-## 3. Quickstart
+## 4. Major components
+
+| Component | Path | What it does |
+|---|---|---|
+| **Ingest** | [`snowflake/*.sql`](snowflake) | DDL that stands up the database, three warehouses (load / transform / BI), and the `RAW.WORKDAY_*` tables, plus a script to bulk-load the sample CSVs — lets the repo run standalone without a live Fivetran connection. |
+| **Staging** | [`models/staging/workday/`](dbt_project/models/staging/workday) | Seven `stg_workday__*` views: 1:1 with each RAW source, renamed to snake_case, typed, deleted-row filtering (`where not _fivetran_deleted`). No joins, no aggregation. |
+| **Intermediate** | [`models/intermediate/`](dbt_project/models/intermediate) | `int_workers_joined_positions` — the one cross-source join needed before dims can be built; ephemeral/view, never queried directly by BI. |
+| **Dimensions** | [`models/marts/core/`](dbt_project/models/marts/core) | `dim_employee` (SCD Type 2, built from a snapshot), `dim_department`, `dim_position`, `dim_location`, `dim_date` (SCD1 / generated) — conformed across every fact. |
+| **Facts** | [`models/marts/hr/`](dbt_project/models/marts/hr) | `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment` — atomic grain, additive measures, incremental materialization keyed on `_fivetran_synced`. |
+| **History** | [`snapshots/snap_workers.sql`](dbt_project/snapshots/snap_workers.sql) | dbt snapshot with a timestamp strategy — captures every job/department/manager/comp change to `stg_workday__workers` as it happens, the raw material `dim_employee` is built from. |
+| **Quality** | [`tests/`](dbt_project/tests), `schema.yml` | `not_null` / `unique` / `relationships` on every mart key, plus singular tests (`assert_positive_hours`, terminated-employee date checks) and source freshness thresholds. |
+| **Reference** | [`macros/`](dbt_project/macros), [`seeds/`](dbt_project/seeds) | `generate_schema_name.sql` maps dbt's target schemas onto the exact `MARTS_CORE` / `MARTS_HR` naming from the architecture doc; `seed_pay_group.csv` is a small static lookup. |
+| **Pipeline** | [`.github/workflows/dbt_ci.yml`](.github/workflows/dbt_ci.yml) | On every PR touching `dbt_project/`: `sqlfluff` lints, then `dbt deps → seed → snapshot → build` runs against a dedicated Snowflake `ci` target using key-pair auth from GitHub Secrets. |
+
+## 5. Technologies & frameworks
+
+- **Extract & load:** Workday RaaS / REST API, Fivetran connector
+- **Warehouse:** Snowflake — multi-warehouse workload isolation, clustering keys
+- **Transform:** dbt-snowflake 1.8, dbt_utils package, dbt snapshots (SCD2), Jinja macros
+- **Quality & CI:** sqlfluff (Snowflake dialect), dbt schema + singular tests, GitHub Actions, key-pair auth via Secrets
+- **Consumption:** Tableau / Looker / Power BI, dbt docs (lineage), ad-hoc SQL
+
+## 6. Quickstart
 
 **Prereqs:** Snowflake account (trial is fine), `python3.11+`, `pip`.
 
@@ -118,7 +146,19 @@ dbt docs generate && dbt docs serve
 
 In a real deployment, step 2 is performed by the **Fivetran Workday connector** on a schedule (see [`docs/architecture.md#2-fivetran-connector`](docs/architecture.md)) — the SQL here exists purely so this repo is runnable standalone without a live Fivetran account.
 
-## 4. What this demonstrates (for reviewers)
+## 7. Execution flow, start to finish
+
+Two flows run this repo: the **data pipeline** (production cadence) and **CI** (every pull request).
+
+1. **Workday emits a change** — a worker's job, a time entry, a pay result, or a benefits election changes inside Workday's HCM/Payroll/Time/Benefits domains.
+2. **Fivetran syncs it to RAW** — the Workday connector pulls via RaaS/REST under a read-only Integration System User and lands rows in `RAW.WORKDAY_*`, tagged with `_fivetran_synced`. Cadence: 6h (HCM/Position) · 1h (Time Entry, in-period) · 24h (Benefits).
+3. **`dbt seed` & `dbt snapshot` run** — `dbt seed` refreshes static lookups; `dbt snapshot` compares `stg_workday__workers` against `snap_workers` and inserts new SCD2 history rows for anything that changed. Trigger: after Fivetran sync completes (webhook or freshness poll).
+4. **`dbt run` builds staging → intermediate → marts** — staging views normalize RAW; `int_workers_joined_positions` joins worker and position; marts materialize `dim_*` (table) and `fact_*` (incremental) from the snapshot and staging layers.
+5. **`dbt test` validates the build** — schema tests on every PK/FK plus singular business-rule tests run before the build is considered good; a failure blocks the marts from being trusted downstream.
+6. **BI queries the marts** — Tableau/Looker/Power BI or ad-hoc SQL hits `MARTS_CORE` / `MARTS_HR` through the isolated `WH_BI_QUERY` warehouse — never touching RAW or STAGING directly.
+7. **In parallel, every pull request:** GitHub Actions lints changed models with sqlfluff, then runs `dbt deps → seed → snapshot → build` against a dedicated Snowflake `ci` schema — the same DAG as production, run on synthetic data before merge.
+
+## 8. What this demonstrates (for reviewers)
 
 - Kimball dimensional modeling: conformed `dim_employee`, `dim_department`, `dim_position`, `dim_date`; atomic-grain `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment`
 - SCD Type 2 on `dim_employee` via a dbt snapshot (job/comp/manager history), SCD Type 1 on low-cardinality reference dims
@@ -127,6 +167,6 @@ In a real deployment, step 2 is performed by the **Fivetran Workday connector** 
 - Snowflake specifics: clustering keys on large facts, a right-sized warehouse per workload, `COPY INTO` bulk load, RAW/STAGING/ANALYTICS schema separation
 - CI: lint (sqlfluff) + `dbt build` against a Snowflake CI database on every PR
 
-## 5. License
+## 9. License
 
 MIT — see [`LICENSE`](LICENSE). Sample data is entirely synthetic; no real Workday tenant or employee data is used.
