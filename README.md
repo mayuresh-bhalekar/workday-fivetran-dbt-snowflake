@@ -168,6 +168,115 @@ A model-by-model trace of every `ref()`/`source()` in `dbt_project/` (sources �
 - **No semantic layer ships in the repo.** There's no dbt Semantic Layer, no `semantic_models:`/`metrics:` definitions, and no `exposures.yml`. `MARTS_CORE`/`MARTS_HR` are the last thing dbt builds; any metric logic lives wherever the consuming BI tool defines it.
 - **No dashboards ship in the repo.** Tableau/Looker/Power BI are named as the intended consumers (via the isolated `WH_BI_QUERY` warehouse) but no workbook/view files exist here — the trail this repo actually builds ends at the marts.
 
+**Full dependency graph** — every `ref()`/`source()` edge in the project, by layer. Dashed edges are value-based conformance or downstream steps this repo doesn't implement, not dbt `ref()`s.
+
+```mermaid
+flowchart TB
+    subgraph SRC["RAW · Fivetran-synced Workday sources"]
+        direction LR
+        S_WORK["workday_workers"]
+        S_POS["workday_positions"]
+        S_DEPT["workday_departments"]
+        S_LOC["workday_locations"]
+        S_TIME["workday_time_entries"]
+        S_PAY["workday_pay_results"]
+        S_BEN["workday_benefits_enrollment"]
+    end
+
+    subgraph STG["STAGING · dbt views"]
+        direction LR
+        T_WORK["stg_workday__workers"]
+        T_POS["stg_workday__positions"]
+        T_DEPT["stg_workday__departments"]
+        T_LOC["stg_workday__locations"]
+        T_TIME["stg_workday__time_entries"]
+        T_PAY["stg_workday__pay_results"]
+        T_BEN["stg_workday__benefits_enrollment"]
+    end
+
+    I_JOIN["int_workers_joined_positions<br/>ORPHANED — not ref'd downstream"]
+    SNAP["snap_workers<br/>SCD2 snapshot"]
+
+    subgraph DIM["MARTS_CORE · dimensions"]
+        direction LR
+        D_EMP["dim_employee<br/>SCD2"]
+        D_DEPT["dim_department<br/>SCD1"]
+        D_POS["dim_position<br/>SCD1"]
+        D_LOC["dim_location<br/>SCD1"]
+        D_DATE["dim_date<br/>generated spine"]
+    end
+
+    subgraph FACT["MARTS_HR · facts"]
+        direction LR
+        F_HRS["fact_hours_worked"]
+        F_PAY["fact_pay"]
+        F_BEN["fact_benefits_enrollment"]
+    end
+
+    SEMX["Semantic layer<br/>— not present in repo"]
+    DASHX["Dashboards<br/>Tableau · Looker · Power BI<br/>— not present in repo"]
+
+    S_WORK --> T_WORK
+    S_POS --> T_POS
+    S_DEPT --> T_DEPT
+    S_LOC --> T_LOC
+    S_TIME --> T_TIME
+    S_PAY --> T_PAY
+    S_BEN --> T_BEN
+
+    T_WORK --> I_JOIN
+    T_POS --> I_JOIN
+    T_DEPT --> I_JOIN
+    T_LOC --> I_JOIN
+
+    T_WORK --> SNAP
+    SNAP --> D_EMP
+    T_POS --> D_EMP
+    T_DEPT --> D_EMP
+    T_LOC --> D_EMP
+
+    T_DEPT --> D_DEPT
+    T_POS --> D_POS
+    T_LOC --> D_LOC
+
+    T_TIME --> F_HRS
+    D_EMP -->|"is_current"| F_HRS
+    T_PAY --> F_PAY
+    D_EMP -->|"is_current"| F_PAY
+    T_BEN --> F_BEN
+    D_EMP -->|"is_current"| F_BEN
+
+    D_DATE -.->|"date_key value match"| F_HRS
+    D_DATE -.->|"date_key value match"| F_PAY
+    D_DATE -.->|"date_key value match"| F_BEN
+
+    D_EMP -.-> SEMX
+    D_DEPT -.-> SEMX
+    D_POS -.-> SEMX
+    D_LOC -.-> SEMX
+    D_DATE -.-> SEMX
+    F_HRS -.-> SEMX
+    F_PAY -.-> SEMX
+    F_BEN -.-> SEMX
+    SEMX -.-> DASHX
+
+    classDef raw fill:#e9e9e6,stroke:#6b6f76,color:#1c2430;
+    classDef stg fill:#eef0ea,stroke:#c5c9bd,color:#1c2430;
+    classDef orphan fill:#f5e6db,stroke:#b5622c,color:#1c2430,stroke-dasharray: 4 3;
+    classDef snap fill:#e3ebf5,stroke:#35578f,color:#1c2430;
+    classDef dim fill:#e3ebf5,stroke:#35578f,color:#1c2430;
+    classDef fact fill:#f5e6db,stroke:#b5622c,color:#1c2430;
+    classDef notbuilt fill:transparent,stroke:#8791a0,color:#8791a0,stroke-dasharray: 4 3;
+
+    class S_WORK,S_POS,S_DEPT,S_LOC,S_TIME,S_PAY,S_BEN raw;
+    class T_WORK,T_POS,T_DEPT,T_LOC,T_TIME,T_PAY,T_BEN stg;
+    class I_JOIN orphan;
+    class SNAP snap;
+    class D_EMP,D_DEPT,D_POS,D_LOC,D_DATE dim;
+    class F_HRS,F_PAY,F_BEN fact;
+    class SEMX,DASHX notbuilt;
+```
+
 ## 9. What this demonstrates (for reviewers)
 
 - Kimball dimensional modeling: conformed `dim_employee`, `dim_department`, `dim_position`, `dim_date`; atomic-grain `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment`
