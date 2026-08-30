@@ -102,7 +102,7 @@ workday-fivetran-dbt-snowflake/
 |---|---|---|
 | **Ingest** | [`snowflake/*.sql`](snowflake) | DDL that stands up the database, three warehouses (load / transform / BI), and the `RAW.WORKDAY_*` tables, plus a script to bulk-load the sample CSVs — lets the repo run standalone without a live Fivetran connection. |
 | **Staging** | [`models/staging/workday/`](dbt_project/models/staging/workday) | Seven `stg_workday__*` views: 1:1 with each RAW source, renamed to snake_case, typed, deleted-row filtering (`where not _fivetran_deleted`). No joins, no aggregation. |
-| **Intermediate** | [`models/intermediate/`](dbt_project/models/intermediate) | `int_workers_joined_positions` — the one cross-source join needed before dims can be built; ephemeral/view, never queried directly by BI. |
+| **Intermediate** | [`models/intermediate/`](dbt_project/models/intermediate) | `int_workers_joined_positions` — a worker/position/department/location join. **Currently orphaned**: no downstream model `ref()`s it — see [§8 Data lineage findings](#8-data-lineage-findings). |
 | **Dimensions** | [`models/marts/core/`](dbt_project/models/marts/core) | `dim_employee` (SCD Type 2, built from a snapshot), `dim_department`, `dim_position`, `dim_location`, `dim_date` (SCD1 / generated) — conformed across every fact. |
 | **Facts** | [`models/marts/hr/`](dbt_project/models/marts/hr) | `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment` — atomic grain, additive measures, incremental materialization keyed on `_fivetran_synced`. |
 | **History** | [`snapshots/snap_workers.sql`](dbt_project/snapshots/snap_workers.sql) | dbt snapshot with a timestamp strategy — captures every job/department/manager/comp change to `stg_workday__workers` as it happens, the raw material `dim_employee` is built from. |
@@ -158,7 +158,17 @@ Two flows run this repo: the **data pipeline** (production cadence) and **CI** (
 6. **BI queries the marts** — Tableau/Looker/Power BI or ad-hoc SQL hits `MARTS_CORE` / `MARTS_HR` through the isolated `WH_BI_QUERY` warehouse — never touching RAW or STAGING directly.
 7. **In parallel, every pull request:** GitHub Actions lints changed models with sqlfluff, then runs `dbt deps → seed → snapshot → build` against a dedicated Snowflake `ci` schema — the same DAG as production, run on synthetic data before merge.
 
-## 8. What this demonstrates (for reviewers)
+## 8. Data lineage findings
+
+A model-by-model trace of every `ref()`/`source()` in `dbt_project/` (sources → staging → intermediate → snapshot → dims → facts) turned up a few things worth knowing before you build on this repo:
+
+- **`int_workers_joined_positions` is orphaned.** Its header comment claims it "feeds `dim_employee`," but nothing `ref()`s it — `dim_employee` duplicates the same worker/position/department/location join directly against the staging models instead. The join logic is maintained in two places; either wire the intermediate model into `dim_employee` or delete it.
+- **Facts join `dim_employee` on `is_current`, not the point-in-time version.** `fact_hours_worked`, `fact_pay`, and `fact_benefits_enrollment` all filter `dim_employee` to `where is_current` when resolving `employee_key` — a fact row links to *today's* employee attributes, not the SCD2 version that was active on the transaction date.
+- **Facts conform to `dim_date` by value, not by `ref()`.** Each fact computes its own `date_key` as `generate_surrogate_key(entry_date | pay_period_end_date | effective_date)` rather than joining `dim_date` — this matches by construction (both use the same hash of the same date) but isn't a declared foreign key relationship dbt would test.
+- **No semantic layer ships in the repo.** There's no dbt Semantic Layer, no `semantic_models:`/`metrics:` definitions, and no `exposures.yml`. `MARTS_CORE`/`MARTS_HR` are the last thing dbt builds; any metric logic lives wherever the consuming BI tool defines it.
+- **No dashboards ship in the repo.** Tableau/Looker/Power BI are named as the intended consumers (via the isolated `WH_BI_QUERY` warehouse) but no workbook/view files exist here — the trail this repo actually builds ends at the marts.
+
+## 9. What this demonstrates (for reviewers)
 
 - Kimball dimensional modeling: conformed `dim_employee`, `dim_department`, `dim_position`, `dim_date`; atomic-grain `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment`
 - SCD Type 2 on `dim_employee` via a dbt snapshot (job/comp/manager history), SCD Type 1 on low-cardinality reference dims
@@ -167,6 +177,6 @@ Two flows run this repo: the **data pipeline** (production cadence) and **CI** (
 - Snowflake specifics: clustering keys on large facts, a right-sized warehouse per workload, `COPY INTO` bulk load, RAW/STAGING/ANALYTICS schema separation
 - CI: lint (sqlfluff) + `dbt build` against a Snowflake CI database on every PR
 
-## 9. License
+## 10. License
 
 MIT — see [`LICENSE`](LICENSE). Sample data is entirely synthetic; no real Workday tenant or employee data is used.
