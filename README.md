@@ -8,18 +8,48 @@ This repo is a **portfolio/demo project**. It ships realistic (synthetic) Workda
 
 ## 1. Architecture
 
+```mermaid
+flowchart LR
+    WD["Workday<br/>HCM · Payroll<br/>Time · Benefits"]
+    FT["Fivetran<br/>Workday connector"]
+
+    subgraph SF["Snowflake · HR_ANALYTICS"]
+        direction LR
+        RAW["RAW<br/>1:1 replica<br/>append-only"]
+        STG["STAGING<br/>stg_workday__*<br/>views"]
+        SNAP["SNAPSHOTS<br/>snap_workers · SCD2"]
+        INT["INTERMEDIATE<br/>int_workers_<br/>joined_positions"]
+        CORE["MARTS_CORE<br/>dim_employee (SCD2)<br/>dim_dept · pos · date"]
+        HR["MARTS_HR<br/>fact_hours_worked<br/>fact_pay · fact_benefits"]
+    end
+
+    BI["BI / SQL<br/>Tableau · Looker · ad hoc"]
+
+    WD -->|RaaS / REST| FT
+    FT -->|incremental sync| RAW
+    RAW --> STG
+    STG --> SNAP
+    STG --> INT
+    SNAP --> CORE
+    INT --> CORE
+    INT --> HR
+    CORE --> BI
+    HR --> BI
+
+    classDef raw fill:#e9e9e6,stroke:#6b6f76,color:#1c2430;
+    classDef stg fill:#eef0ea,stroke:#c5c9bd,color:#1c2430;
+    classDef dim fill:#e3ebf5,stroke:#35578f,color:#1c2430;
+    classDef fact fill:#f5e6db,stroke:#b5622c,color:#1c2430;
+    classDef bi fill:#ffffff,stroke:#c5c9bd,color:#1c2430;
+
+    class WD,RAW raw;
+    class FT,STG,INT stg;
+    class SNAP,CORE dim;
+    class HR fact;
+    class BI bi;
 ```
-┌────────────┐     ┌───────────┐     ┌────────────────────────────────────────────┐
-│  Workday    │     │ Fivetran  │     │                 Snowflake                    │
-│  (HCM, Pay, │ --> │ Connector │ --> │  RAW  ──dbt──▶  STAGING ──dbt──▶  MARTS       │
-│  Time, Ben, │     │ (Report-  │     │  (1:1 source   (cleaned,        (star schema:│
-│  Recruiting)│     │  Writer / │     │   replica,     typed, renamed)  dims + facts)│
-└────────────┘     │  RaaS)    │     │   append-only  │
-                    └───────────┘     └────────────────────────────────────────────┘
-                                                              │
-                                                              ▼
-                                                    BI Tools / Reverse ETL / Notebooks
-```
+
+Orchestrated end-to-end by `dbt build` (`seed → snapshot → run → test`), gated in CI on every pull request (see [§3 Quickstart](#3-quickstart) and [`.github/workflows/dbt_ci.yml`](.github/workflows/dbt_ci.yml)).
 
 **Data flow contract**
 
