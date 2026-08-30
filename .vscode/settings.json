@@ -1,0 +1,4 @@
+{
+  "python.defaultInterpreterPath": "~/.venvs/dbt-snowflake/bin/python3.12",
+  "python.terminal.activateEnvironment": true
+}

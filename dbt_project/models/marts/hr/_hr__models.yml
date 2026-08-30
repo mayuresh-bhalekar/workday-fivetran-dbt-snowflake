@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: fact_hours_worked
+    description: >
+      Atomic fact. Grain: one row per worker per time entry per day.
+      Additive measures: hours_worked, overtime_hours, total_hours.
+    columns:
+      - name: hours_worked_key
+        tests: [unique, not_null]
+      - name: time_entry_id
+        tests: [unique, not_null]
+      - name: employee_key
+        tests:
+          - relationships:
+              to: ref('dim_employee')
+              field: employee_key
+      - name: hours_worked
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 24
+
+  - name: fact_pay
+    description: >
+      Atomic fact. Grain: one row per worker per pay period per
+      earning/deduction code. Additive measure: amount (signed).
+    columns:
+      - name: pay_key
+        tests: [unique, not_null]
+      - name: pay_result_id
+        tests: [unique, not_null]
+      - name: employee_key
+        tests:
+          - relationships:
+              to: ref('dim_employee')
+              field: employee_key
+      - name: amount
+        tests: [not_null]
+
+  - name: fact_benefits_enrollment
+    description: >
+      Semi-additive fact (periodic snapshot). Grain: one row per worker per
+      plan per enrollment effective date.
+    columns:
+      - name: benefits_enrollment_key
+        tests: [unique, not_null]
+      - name: enrollment_id
+        tests: [unique, not_null]
+      - name: employee_key
+        tests:
+          - relationships:
+              to: ref('dim_employee')
+              field: employee_key
+      - name: plan_type
+        tests:
+          - accepted_values:
+              values: ['Medical', 'Dental', 'Vision', '401k']

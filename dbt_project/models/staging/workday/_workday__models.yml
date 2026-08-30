@@ -1,0 +1,79 @@
+version: 2
+
+models:
+  - name: stg_workday__departments
+    description: One row per Workday Supervisory Organization (department), SCD1.
+    columns:
+      - name: department_id
+        tests: [unique, not_null]
+
+  - name: stg_workday__locations
+    description: One row per Workday Location.
+    columns:
+      - name: location_id
+        tests: [unique, not_null]
+
+  - name: stg_workday__positions
+    description: One row per Workday Position / Job Profile.
+    columns:
+      - name: position_id
+        tests: [unique, not_null]
+
+  - name: stg_workday__workers
+    description: One row per Workday Worker record version (feeds SCD2 snapshot).
+    columns:
+      - name: employee_id
+        tests: [not_null]
+      - name: worker_status
+        tests:
+          - accepted_values:
+              values: ['Active', 'Terminated', 'Leave']
+
+  - name: stg_workday__time_entries
+    description: One row per Workday Time Entry.
+    columns:
+      - name: time_entry_id
+        tests: [unique, not_null]
+      - name: employee_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_workday__workers')
+              field: employee_id
+      - name: hours_worked
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 24
+
+  - name: stg_workday__pay_results
+    description: One row per Workday Pay Result earning/deduction line.
+    columns:
+      - name: pay_result_id
+        tests: [unique, not_null]
+      - name: employee_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_workday__workers')
+              field: employee_id
+      - name: code_type
+        tests:
+          - accepted_values:
+              values: ['Earning', 'Deduction']
+
+  - name: stg_workday__benefits_enrollment
+    description: One row per Workday Benefit Election.
+    columns:
+      - name: enrollment_id
+        tests: [unique, not_null]
+      - name: employee_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_workday__workers')
+              field: employee_id
+      - name: plan_type
+        tests:
+          - accepted_values:
+              values: ['Medical', 'Dental', 'Vision', '401k']

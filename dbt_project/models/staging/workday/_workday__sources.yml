@@ -1,0 +1,60 @@
+version: 2
+
+sources:
+  - name: workday
+    database: HR_ANALYTICS
+    schema: RAW
+    description: >
+      Fivetran-owned RAW replica of Workday HCM/Payroll/Time/Benefits data,
+      synced via the Workday RaaS/API connector. Append-only; treat as read-only.
+    loaded_at_field: _fivetran_synced
+    freshness:
+      warn_after: {count: 12, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: workday_departments
+        description: Workday Supervisory Organization export.
+        columns:
+          - name: DEPARTMENT_ID
+            tests: [unique, not_null]
+      - name: workday_locations
+        description: Workday Location master data.
+        columns:
+          - name: LOCATION_ID
+            tests: [unique, not_null]
+      - name: workday_positions
+        description: Workday Position / Job Profile export.
+        columns:
+          - name: POSITION_ID
+            tests: [unique, not_null]
+      - name: workday_workers
+        description: >
+          Workday Worker export, effective-dated. Fivetran surfaces every
+          historical version of a worker row when Workday emits it — this
+          feeds the SCD2 snapshot (snapshots/snap_workers.sql).
+        loaded_at_field: _fivetran_synced
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
+        columns:
+          - name: EMPLOYEE_ID
+            tests: [not_null]
+      - name: workday_time_entries
+        description: Workday Time Entry export (one row per clocked time block/day).
+        loaded_at_field: _fivetran_synced
+        freshness:
+          warn_after: {count: 2, period: hour}
+          error_after: {count: 6, period: hour}
+        columns:
+          - name: TIME_ENTRY_ID
+            tests: [unique, not_null]
+      - name: workday_pay_results
+        description: Workday Pay Result export (one row per worker/pay-period/earning-deduction code).
+        columns:
+          - name: PAY_RESULT_ID
+            tests: [unique, not_null]
+      - name: workday_benefits_enrollment
+        description: Workday Benefit Election export.
+        columns:
+          - name: ENROLLMENT_ID
+            tests: [unique, not_null]

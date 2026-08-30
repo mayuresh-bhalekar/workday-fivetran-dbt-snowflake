@@ -1,0 +1,3 @@
+pay_group_id,pay_group_name,pay_frequency,country
+PG-BIWEEKLY,US Biweekly,Biweekly,USA
+PG-MONTHLY-UK,UK Monthly,Monthly,GBR

@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: dim_employee
+    description: >
+      Conformed employee dimension, SCD Type 2. One row per employee per
+      job/department/manager/comp version. Join facts to the row where
+      fact_date between valid_from and valid_to for point-in-time accuracy,
+      or filter is_current = true for "as of today".
+    columns:
+      - name: employee_key
+        description: Surrogate key (employee_id + valid_from hash). Grain PK.
+        tests: [unique, not_null]
+      - name: employee_id
+        description: Workday natural key.
+        tests: [not_null]
+      - name: worker_status
+        tests:
+          - accepted_values:
+              values: ['Active', 'Terminated', 'Leave']
+      - name: department_id
+        tests:
+          - relationships:
+              to: ref('dim_department')
+              field: department_id
+      - name: position_id
+        tests:
+          - relationships:
+              to: ref('dim_position')
+              field: position_id
+      - name: is_current
+        tests: [not_null]
+
+  - name: dim_department
+    description: Conformed department dimension, SCD Type 1.
+    columns:
+      - name: department_id
+        tests: [unique, not_null]
+
+  - name: dim_position
+    description: Conformed position dimension, SCD Type 1.
+    columns:
+      - name: position_id
+        tests: [unique, not_null]
+
+  - name: dim_location
+    description: Conformed location dimension, SCD Type 1.
+    columns:
+      - name: location_id
+        tests: [unique, not_null]
+
+  - name: dim_date
+    description: Generated calendar spine, 2015-01-01 through 2030-12-31.
+    columns:
+      - name: date_key
+        tests: [unique, not_null]
+      - name: date_day
+        tests: [unique, not_null]

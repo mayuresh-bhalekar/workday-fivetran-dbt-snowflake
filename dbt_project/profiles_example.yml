@@ -1,0 +1,40 @@
+# Example ~/.dbt/profiles.yml — copy, rename, fill in with YOUR Snowflake details.
+# Never commit a real profiles.yml with credentials. Prefer key-pair auth or SSO
+# over plaintext password, especially for CI service accounts.
+
+workday_hr_analytics:
+  target: dev
+  outputs:
+
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      authenticator: externalbrowser   # or 'snowflake' + password / key-pair for service accounts
+      role: DBT_TRANSFORMER
+      database: HR_ANALYTICS
+      warehouse: WH_DBT_TRANSFORM
+      schema: dev_yourname            # personal dev schema, e.g. dev_priya
+      threads: 4
+
+    ci:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_CI_USER') }}"
+      private_key: "{{ env_var('SNOWFLAKE_CI_PRIVATE_KEY') }}"   # key-pair auth for CI
+      role: DBT_TRANSFORMER
+      database: HR_ANALYTICS_CI
+      warehouse: WH_DBT_TRANSFORM
+      schema: ci
+      threads: 4
+
+    prod:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_PROD_USER') }}"
+      private_key: "{{ env_var('SNOWFLAKE_PROD_PRIVATE_KEY') }}"
+      role: DBT_TRANSFORMER
+      database: HR_ANALYTICS
+      warehouse: WH_DBT_TRANSFORM
+      schema: prod   # overridden per-model by macros/generate_schema_name.sql
+      threads: 8

@@ -1,0 +1,46 @@
+name: 'workday_hr_analytics'
+version: '1.0.0'
+config-version: 2
+
+profile: 'workday_hr_analytics'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+snapshot-paths: ["snapshots"]
+macro-paths: ["macros"]
+analysis-paths: ["analyses"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+vars:
+  # Tolerance (days) before a staged worker record is considered "stale" relative to _fivetran_synced
+  fivetran_freshness_warn_hours: 12
+
+models:
+  workday_hr_analytics:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      core:
+        +schema: marts_core
+        +materialized: table
+      hr:
+        +schema: marts_hr
+        +materialized: incremental
+        +on_schema_change: append_new_columns
+
+seeds:
+  workday_hr_analytics:
+    +schema: staging
+
+snapshots:
+  workday_hr_analytics:
+    +target_schema: snapshots

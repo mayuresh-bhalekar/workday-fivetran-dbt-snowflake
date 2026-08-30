@@ -1,0 +1,11 @@
+POSITION_ID,JOB_TITLE,JOB_FAMILY,MANAGEMENT_LEVEL,FTE,_FIVETRAN_SYNCED
+POS-1001,Software Engineer II,Engineering,Individual Contributor,1.0,2026-08-01 03:00:00
+POS-1002,Senior Software Engineer,Engineering,Individual Contributor,1.0,2026-08-01 03:00:00
+POS-1003,Engineering Manager,Engineering,Manager,1.0,2026-08-01 03:00:00
+POS-1004,Account Executive,Sales,Individual Contributor,1.0,2026-08-01 03:00:00
+POS-1005,Sales Manager,Sales,Manager,1.0,2026-08-01 03:00:00
+POS-1006,HR Business Partner,Human Resources,Individual Contributor,1.0,2026-08-01 03:00:00
+POS-1007,Financial Analyst,Finance,Individual Contributor,1.0,2026-08-01 03:00:00
+POS-1008,Customer Success Manager,Customer Success,Individual Contributor,0.8,2026-08-01 03:00:00
+POS-1009,Staff Software Engineer,Engineering,Individual Contributor,1.0,2026-08-01 03:00:00
+POS-1010,VP of Engineering,Engineering,Executive,1.0,2026-08-01 03:00:00
