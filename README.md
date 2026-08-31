@@ -55,7 +55,7 @@ flowchart LR
     class BI bi;
 ```
 
-Orchestrated end-to-end by `dbt build` (`seed → snapshot → run → test`), gated in CI on every pull request (see [§6 Quickstart](#6-quickstart) and [`.github/workflows/dbt_ci.yml`](.github/workflows/dbt_ci.yml)).
+Orchestrated end-to-end by `dbt build` (`seed → run staging → snapshot → build`), gated in CI on every pull request (see [§6 Quickstart](#6-quickstart) and [`.github/workflows/dbt_ci.yml`](.github/workflows/dbt_ci.yml)).
 
 **Data flow contract**
 
@@ -139,8 +139,10 @@ cp dbt_project/profiles_example.yml ~/.dbt/profiles.yml
 cd dbt_project
 dbt deps
 dbt seed
+dbt run --select staging   # snap_workers snapshots stg_workday__workers,
+                            # so staging must exist first on a fresh database
 dbt snapshot
-dbt build          # runs models + tests
+dbt build                  # remaining models (intermediate, marts) + tests
 dbt docs generate && dbt docs serve
 ```
 

@@ -64,6 +64,11 @@ jobs:
       - name: dbt seed
         working-directory: dbt_project
         run: dbt seed --target ci
+      - name: dbt run (staging)
+        # snap_workers snapshots stg_workday__workers, so staging must exist
+        # before the first snapshot run — matters on a fresh database/schema.
+        working-directory: dbt_project
+        run: dbt run --target ci --select staging
       - name: dbt snapshot
         working-directory: dbt_project
         run: dbt snapshot --target ci
