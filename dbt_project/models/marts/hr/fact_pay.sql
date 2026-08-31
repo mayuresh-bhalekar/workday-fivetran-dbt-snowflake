@@ -13,12 +13,12 @@
 
 with pay_results as (
 
-    select * from {{ ref('stg_workday__pay_results') }} as src
+    select * from {{ ref('stg_workday__pay_results') }}
 
     {% if is_incremental() %}
-        where src._fivetran_synced > (
-            select coalesce(max(this_tbl._fivetran_synced), '1900-01-01')
-            from {{ this }} as this_tbl
+        where _fivetran_synced > (
+            select coalesce(max(_fivetran_synced), '1900-01-01')
+            from {{ this }}
         )
     {% endif %}
 

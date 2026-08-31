@@ -12,12 +12,12 @@
 
 with time_entries as (
 
-    select * from {{ ref('stg_workday__time_entries') }} as src
+    select * from {{ ref('stg_workday__time_entries') }}
 
     {% if is_incremental() %}
-        where src._fivetran_synced > (
-            select coalesce(max(this_tbl._fivetran_synced), '1900-01-01')
-            from {{ this }} as this_tbl
+        where _fivetran_synced > (
+            select coalesce(max(_fivetran_synced), '1900-01-01')
+            from {{ this }}
         )
     {% endif %}
 
