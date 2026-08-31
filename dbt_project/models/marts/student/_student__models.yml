@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: dim_student
+    description: >
+      Conformed student dimension, SCD Type 2. One row per student per
+      enrollment-status/program version. Join facts to the row where
+      registration_date between valid_from and valid_to for point-in-time
+      accuracy, or filter is_current = true for "as of today".
+    meta:
+      metrics:
+        active_student_count:
+          type: count
+          sql: ${student_id}
+          label: Active Students
+          description: >
+            Count of dim_student rows — filter is_current and
+            enrollment_status = 'Active' for a true headcount.
+    columns:
+      - name: student_key
+        description: Surrogate key (student_id + valid_from hash). Grain PK.
+        tests: [unique, not_null]
+      - name: student_id
+        description: Workday natural key.
+        tests: [not_null]
+      - name: full_name
+        description: Student's full name.
+      - name: enrollment_status
+        tests:
+          - accepted_values:
+              values: ['Active', 'Withdrawn', 'Graduated', 'Leave']
+      - name: program_id
+        tests:
+          - relationships:
+              to: ref('dim_program')
+              field: program_id
+      - name: admit_term_id
+        tests:
+          - relationships:
+              to: ref('dim_academic_period')
+              field: academic_period_id
+      - name: is_current
+        tests: [not_null]
+
+  - name: dim_program
+    description: Conformed program-of-study dimension, SCD Type 1.
+    columns:
+      - name: program_id
+        tests: [unique, not_null]
+      - name: degree_level
+        tests:
+          - accepted_values:
+              values: ['Bachelor', 'Master', 'Doctorate']
+
+  - name: dim_academic_period
+    description: Conformed academic-period (term) dimension, SCD Type 1.
+    columns:
+      - name: academic_period_id
+        tests: [unique, not_null]
+      - name: start_date
+        tests: [not_null]
+      - name: end_date
+        tests: [not_null]
+
+  - name: fact_enrollment
+    description: >
+      Atomic fact. Grain: one row per student per course registration per
+      academic period. Additive measure: credit_hours.
+    columns:
+      - name: enrollment_key
+        tests: [unique, not_null]
+      - name: registration_id
+        tests: [unique, not_null]
+      - name: student_key
+        tests:
+          - relationships:
+              to: ref('dim_student')
+              field: student_key
+      - name: academic_period_id
+        tests:
+          - relationships:
+              to: ref('dim_academic_period')
+              field: academic_period_id
+      - name: credit_hours
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 6
+      - name: registration_status
+        tests:
+          - accepted_values:
+              values: ['Enrolled', 'Completed', 'Dropped', 'Withdrawn']

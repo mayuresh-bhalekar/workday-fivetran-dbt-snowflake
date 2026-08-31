@@ -15,6 +15,6 @@
 -- was true as of that transaction date" rather than only the current state.
 -- Run `dbt snapshot` on a schedule immediately after each Fivetran sync.
 
-select * from {{ ref('stg_workday__workers') }}
+    select * from {{ ref('stg_workday__workers') }}
 
 {% endsnapshot %}

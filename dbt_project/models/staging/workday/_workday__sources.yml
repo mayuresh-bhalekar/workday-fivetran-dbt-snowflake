@@ -58,3 +58,56 @@ sources:
         columns:
           - name: ENROLLMENT_ID
             tests: [unique, not_null]
+
+      # -- Student (Workday Student / Enrollment) ---------------------------
+      - name: workday_academic_periods
+        description: Workday Academic Period (term) master data.
+        columns:
+          - name: ACADEMIC_PERIOD_ID
+            tests: [unique, not_null]
+      - name: workday_programs
+        description: Workday Program of Study export.
+        columns:
+          - name: PROGRAM_ID
+            tests: [unique, not_null]
+      - name: workday_students
+        description: >
+          Workday Student export, effective-dated on enrollment status /
+          program changes — feeds the SCD2 snapshot
+          (snapshots/snap_students.sql), same pattern as workday_workers.
+        loaded_at_field: _fivetran_synced
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        columns:
+          - name: STUDENT_ID
+            tests: [not_null]
+      - name: workday_course_registrations
+        description: Workday Course Registration (Enrollment) export.
+        columns:
+          - name: REGISTRATION_ID
+            tests: [unique, not_null]
+
+      # -- Finance (Workday Financials) --------------------------------------
+      - name: workday_ledger_accounts
+        description: Workday Ledger Account (Chart of Accounts) export.
+        columns:
+          - name: GL_ACCOUNT_ID
+            tests: [unique, not_null]
+      - name: workday_cost_centers
+        description: >
+          Workday Cost Center export. COST_CENTER_ID conforms to the
+          COST_CENTER value already carried on workday_departments — Finance
+          and HCM share this dimension.
+        columns:
+          - name: COST_CENTER_ID
+            tests: [unique, not_null]
+      - name: workday_gl_transactions
+        description: Workday General Ledger journal line export.
+        loaded_at_field: _fivetran_synced
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        columns:
+          - name: GL_TRANSACTION_ID
+            tests: [unique, not_null]

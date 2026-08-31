@@ -1,0 +1,9 @@
+GL_ACCOUNT_ID,ACCOUNT_NAME,ACCOUNT_TYPE,ACCOUNT_CATEGORY,_FIVETRAN_SYNCED
+GL-1000,Cash and Cash Equivalents,Asset,Balance Sheet,2026-08-01 03:00:00
+GL-2000,Accounts Payable,Liability,Balance Sheet,2026-08-01 03:00:00
+GL-2100,401(k) Payable,Liability,Balance Sheet,2026-08-01 03:00:00
+GL-2150,Benefits Payable,Liability,Balance Sheet,2026-08-01 03:00:00
+GL-2200,Payroll Tax Payable,Liability,Balance Sheet,2026-08-01 03:00:00
+GL-4000,Service Revenue,Revenue,Income Statement,2026-08-01 03:00:00
+GL-5100,Salaries and Wages Expense,Expense,Income Statement,2026-08-01 03:00:00
+GL-5400,Professional Services Expense,Expense,Income Statement,2026-08-01 03:00:00

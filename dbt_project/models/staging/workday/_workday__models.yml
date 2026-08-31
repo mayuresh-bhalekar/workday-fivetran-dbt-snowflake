@@ -77,3 +77,109 @@ models:
         tests:
           - accepted_values:
               values: ['Medical', 'Dental', 'Vision', '401k']
+
+  # -- Student (Workday Student / Enrollment) ------------------------------
+  - name: stg_workday__academic_periods
+    description: One row per Workday Academic Period (term), SCD1.
+    columns:
+      - name: academic_period_id
+        tests: [unique, not_null]
+      - name: period_type
+        tests:
+          - accepted_values:
+              values: ['Semester', 'Summer', 'Quarter']
+
+  - name: stg_workday__programs
+    description: One row per Workday Program of Study, SCD1.
+    columns:
+      - name: program_id
+        tests: [unique, not_null]
+      - name: degree_level
+        tests:
+          - accepted_values:
+              values: ['Bachelor', 'Master', 'Doctorate']
+
+  - name: stg_workday__students
+    description: One row per Workday Student record version (feeds SCD2 snapshot).
+    columns:
+      - name: student_id
+        tests: [not_null]
+      - name: enrollment_status
+        tests:
+          - accepted_values:
+              values: ['Active', 'Withdrawn', 'Graduated', 'Leave']
+      - name: program_id
+        tests:
+          - relationships:
+              to: ref('stg_workday__programs')
+              field: program_id
+      - name: admit_term_id
+        tests:
+          - relationships:
+              to: ref('stg_workday__academic_periods')
+              field: academic_period_id
+
+  - name: stg_workday__course_registrations
+    description: One row per Workday Course Registration (Enrollment).
+    columns:
+      - name: registration_id
+        tests: [unique, not_null]
+      - name: student_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_workday__students')
+              field: student_id
+      - name: academic_period_id
+        tests:
+          - relationships:
+              to: ref('stg_workday__academic_periods')
+              field: academic_period_id
+      - name: registration_status
+        tests:
+          - accepted_values:
+              values: ['Enrolled', 'Completed', 'Dropped', 'Withdrawn']
+
+  # -- Finance (Workday Financials) ----------------------------------------
+  - name: stg_workday__ledger_accounts
+    description: One row per Workday Ledger Account (Chart of Accounts), SCD1.
+    columns:
+      - name: gl_account_id
+        tests: [unique, not_null]
+      - name: account_type
+        tests:
+          - accepted_values:
+              values: ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']
+
+  - name: stg_workday__cost_centers
+    description: >
+      One row per Workday Cost Center, SCD1. Conforms to
+      stg_workday__departments via department_id.
+    columns:
+      - name: cost_center_id
+        tests: [unique, not_null]
+      - name: department_id
+        tests:
+          - relationships:
+              to: ref('stg_workday__departments')
+              field: department_id
+
+  - name: stg_workday__gl_transactions
+    description: One row per Workday General Ledger journal line.
+    columns:
+      - name: gl_transaction_id
+        tests: [unique, not_null]
+      - name: journal_entry_id
+        tests: [not_null]
+      - name: gl_account_id
+        tests:
+          - relationships:
+              to: ref('stg_workday__ledger_accounts')
+              field: gl_account_id
+      - name: cost_center_id
+        tests:
+          - relationships:
+              to: ref('stg_workday__cost_centers')
+              field: cost_center_id
+      - name: amount
+        tests: [not_null]

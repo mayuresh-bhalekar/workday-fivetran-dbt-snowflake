@@ -1,6 +1,6 @@
 # Workday → Fivetran → dbt → Snowflake: HR Analytics Platform
 
-A production-shaped reference implementation of an HR/Payroll analytics pipeline: **Workday** (source ERP) replicated by **Fivetran** into a **Snowflake** raw layer, transformed with **dbt** into a conformed dimensional model (Kimball-style star schema) ready for BI (Tableau/Looker/Power BI) and ad-hoc SQL analytics.
+A production-shaped reference implementation of a multi-domain Workday analytics pipeline — **HCM, Payroll, Time, Benefits, Student (Enrollment), and Finance** — replicated by **Fivetran** into a **Snowflake** raw layer, transformed with **dbt** into a conformed dimensional model (Kimball-style star schema, with Finance and HCM sharing a conformed Cost Center/Department dimension) ready for BI (Tableau/Looker/Power BI) and ad-hoc SQL analytics.
 
 This repo is a **portfolio/demo project**. It ships realistic (synthetic) Workday-shaped sample data, complete Snowflake DDL, and a working dbt project (staging → intermediate → marts) with tests, docs, a SCD2 snapshot, and CI — so it can be cloned and run end-to-end against any Snowflake trial account.
 
@@ -88,8 +88,10 @@ workday-fivetran-dbt-snowflake/
 │   │   ├── intermediate/        # int_*.sql
 │   │   └── marts/
 │   │       ├── core/            # dim_employee, dim_position, dim_department, dim_date
-│   │       └── hr/              # fact_hours_worked, fact_pay, fact_benefits_enrollment
-│   ├── snapshots/                # SCD2 snapshot on workers
+│   │       ├── hr/               # fact_hours_worked, fact_pay, fact_benefits_enrollment
+│   │       ├── student/           # dim_student, dim_program, dim_academic_period, fact_enrollment
+│   │       └── finance/            # dim_gl_account, dim_cost_center, fact_gl_transactions
+│   ├── snapshots/                # SCD2 snapshots on workers and students
 │   ├── macros/
 │   ├── tests/                    # singular tests
 │   └── seeds/                    # small reference/lookup CSVs loaded via `dbt seed`
@@ -101,12 +103,16 @@ workday-fivetran-dbt-snowflake/
 | Component | Path | What it does |
 |---|---|---|
 | **Ingest** | [`snowflake/*.sql`](snowflake) | DDL that stands up the database, three warehouses (load / transform / BI), and the `RAW.WORKDAY_*` tables, plus a script to bulk-load the sample CSVs — lets the repo run standalone without a live Fivetran connection. |
-| **Staging** | [`models/staging/workday/`](dbt_project/models/staging/workday) | Seven `stg_workday__*` views: 1:1 with each RAW source, renamed to snake_case, typed, deleted-row filtering (`where not _fivetran_deleted`). No joins, no aggregation. |
+| **Staging** | [`models/staging/workday/`](dbt_project/models/staging/workday) | Fourteen `stg_workday__*` views: 1:1 with each RAW source, renamed to snake_case, typed, deleted-row filtering (`where not _fivetran_deleted`). No joins, no aggregation. |
 | **Intermediate** | [`models/intermediate/`](dbt_project/models/intermediate) | `int_workers_joined_positions` — a worker/position/department/location join. **Currently orphaned**: no downstream model `ref()`s it — see [§9 Data lineage findings](#9-data-lineage-findings). |
-| **Dimensions** | [`models/marts/core/`](dbt_project/models/marts/core) | `dim_employee` (SCD Type 2, built from a snapshot), `dim_department`, `dim_position`, `dim_location`, `dim_date` (SCD1 / generated) — conformed across every fact. |
-| **Facts** | [`models/marts/hr/`](dbt_project/models/marts/hr) | `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment` — atomic grain, additive measures, incremental materialization keyed on `_fivetran_synced`. |
-| **History** | [`snapshots/snap_workers.sql`](dbt_project/snapshots/snap_workers.sql) | dbt snapshot with a timestamp strategy — captures every job/department/manager/comp change to `stg_workday__workers` as it happens, the raw material `dim_employee` is built from. |
-| **Quality** | [`tests/`](dbt_project/tests), `schema.yml` | `not_null` / `unique` / `relationships` on every mart key, plus singular tests (`assert_positive_hours`, terminated-employee date checks) and source freshness thresholds. |
+| **Dimensions (HCM)** | [`models/marts/core/`](dbt_project/models/marts/core) | `dim_employee` (SCD Type 2, built from a snapshot), `dim_department`, `dim_position`, `dim_location`, `dim_date` (SCD1 / generated) — conformed across every HR fact. |
+| **Facts (HCM)** | [`models/marts/hr/`](dbt_project/models/marts/hr) | `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment` — atomic grain, additive measures, incremental materialization keyed on `_fivetran_synced`. |
+| **Dimensions (Student)** | [`models/marts/student/`](dbt_project/models/marts/student) | `dim_student` (SCD Type 2), `dim_program`, `dim_academic_period` (SCD1) — Workday Student is a separate module/connector from HCM. |
+| **Facts (Student)** | [`models/marts/student/`](dbt_project/models/marts/student) | `fact_enrollment` — 1 row per student per course registration per term. |
+| **Dimensions (Finance)** | [`models/marts/finance/`](dbt_project/models/marts/finance) | `dim_gl_account`, `dim_cost_center` (SCD1) — `dim_cost_center.department_id` is a real, tested FK into `dim_department`, the Finance↔HCM conformance point. |
+| **Facts (Finance)** | [`models/marts/finance/`](dbt_project/models/marts/finance) | `fact_gl_transactions` — 1 row per GL journal line, signed (debit +/credit −), balanced by journal entry. |
+| **History** | [`snapshots/`](dbt_project/snapshots) | `snap_workers.sql`, `snap_students.sql` — dbt snapshots with a timestamp strategy, capturing SCD2 history for `dim_employee` and `dim_student` respectively. |
+| **Quality** | [`tests/`](dbt_project/tests), `schema.yml` | `not_null` / `unique` / `relationships` on every mart key, plus singular tests (`assert_positive_hours`, terminated-employee date checks, GL journal-entry balance, payroll→GL reconciliation) and source freshness thresholds. |
 | **Reference** | [`macros/`](dbt_project/macros), [`seeds/`](dbt_project/seeds) | `generate_schema_name.sql` maps dbt's target schemas onto the exact `MARTS_CORE` / `MARTS_HR` naming from the architecture doc; `seed_pay_group.csv` is a small static lookup. |
 | **Pipeline** | [`.github/workflows/dbt_ci.yml`](.github/workflows/dbt_ci.yml) | On every PR touching `dbt_project/`: `sqlfluff` lints, then `dbt deps → seed → snapshot → build` runs against a dedicated Snowflake `ci` target using key-pair auth from GitHub Secrets. |
 
@@ -193,7 +199,7 @@ A model-by-model trace of every `ref()`/`source()` in `dbt_project/` (sources �
 - **No semantic layer ships in the repo.** There's no dbt Semantic Layer, no `semantic_models:`/`metrics:` definitions, and no `exposures.yml`. `MARTS_CORE`/`MARTS_HR` are the last thing dbt builds; any metric logic lives wherever the consuming BI tool defines it.
 - **No dashboards ship in the repo.** Tableau/Looker/Power BI are named as the intended consumers (via the isolated `WH_BI_QUERY` warehouse) but no workbook/view files exist here — the trail this repo actually builds ends at the marts.
 
-**Full dependency graph** — every `ref()`/`source()` edge in the project, by layer. Dashed edges are value-based conformance or downstream steps this repo doesn't implement, not dbt `ref()`s.
+**Full dependency graph** — every `ref()`/`source()` edge in the project, by layer. Dashed edges are value-based conformance or downstream steps this repo doesn't implement, not dbt `ref()`s. *(Scoped to the original HCM/Payroll domain — the Student and Finance marts added later follow the identical staging→snapshot/dims→facts pattern, with one addition: `dim_cost_center` also `ref()`s `dim_department`, the Finance↔HCM conformance edge described in §3 of `docs/architecture.md`.)*
 
 ```mermaid
 flowchart TB
@@ -304,10 +310,11 @@ flowchart TB
 
 ## 10. What this demonstrates (for reviewers)
 
-- Kimball dimensional modeling: conformed `dim_employee`, `dim_department`, `dim_position`, `dim_date`; atomic-grain `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment`
-- SCD Type 2 on `dim_employee` via a dbt snapshot (job/comp/manager history), SCD Type 1 on low-cardinality reference dims
+- Kimball dimensional modeling across four modules (HCM, Payroll, Student, Finance): conformed `dim_employee`, `dim_department`, `dim_student`, `dim_cost_center`; atomic-grain `fact_hours_worked`, `fact_pay`, `fact_enrollment`, `fact_gl_transactions`
+- A genuine cross-module conformed dimension: `dim_cost_center.department_id` is a tested FK into HCM's `dim_department`, letting Finance and Payroll share a grain instead of needing a fuzzy join — and a deliberate non-conformance right next to it (`dim_program.academic_unit` is *not* forced onto `dim_department`), documented with the reasoning in `docs/architecture.md` §3
+- SCD Type 2 on `dim_employee` and `dim_student` via dbt snapshots (job/comp/manager history; enrollment-status/program history), SCD Type 1 on low-cardinality reference dims
 - Layered dbt architecture (staging/intermediate/marts) with `ref()`-only lineage, no cross-layer skipping
-- Data quality: schema tests (`unique`, `not_null`, `relationships`, `accepted_values`), a custom singular test, and source freshness checks
+- Data quality: schema tests (`unique`, `not_null`, `relationships`, `accepted_values`), singular tests including a double-entry GL balance check and a cross-fact payroll→GL reconciliation, and source freshness checks
 - Snowflake specifics: clustering keys on large facts, a right-sized warehouse per workload, `COPY INTO` bulk load, RAW/STAGING/ANALYTICS schema separation
 - CI: lint (sqlfluff) + `dbt build` against a Snowflake CI database on every PR
 

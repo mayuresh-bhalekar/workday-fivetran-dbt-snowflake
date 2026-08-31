@@ -1,0 +1,6 @@
+PROGRAM_ID,PROGRAM_NAME,DEGREE_LEVEL,ACADEMIC_UNIT,CREDIT_HOURS_REQUIRED,_FIVETRAN_SYNCED
+PROG-CS-BS,B.S. Computer Science,Bachelor,School of Engineering,120,2026-08-01 03:00:00
+PROG-DATASCI-MS,M.S. Data Science,Master,School of Engineering,36,2026-08-01 03:00:00
+PROG-BUS-BA,B.A. Business Administration,Bachelor,School of Business,120,2026-08-01 03:00:00
+PROG-MBA,Master of Business Administration,Master,School of Business,54,2026-08-01 03:00:00
+PROG-BIO-BS,B.S. Biology,Bachelor,College of Arts & Sciences,124,2026-08-01 03:00:00

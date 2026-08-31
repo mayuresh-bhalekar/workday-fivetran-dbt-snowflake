@@ -7,5 +7,6 @@ select
     hours_worked,
     overtime_hours
 from {{ ref('fact_hours_worked') }}
-where hours_worked < 0
-   or overtime_hours < 0
+where
+    hours_worked < 0
+    or overtime_hours < 0

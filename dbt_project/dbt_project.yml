@@ -36,6 +36,12 @@ models:
         +schema: marts_hr
         +materialized: incremental
         +on_schema_change: append_new_columns
+      student:
+        +schema: marts_student
+        +materialized: table
+      finance:
+        +schema: marts_finance
+        +materialized: table
 
 seeds:
   workday_hr_analytics:
