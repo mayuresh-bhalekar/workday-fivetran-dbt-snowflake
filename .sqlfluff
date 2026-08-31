@@ -6,6 +6,7 @@ exclude_rules = ambiguous.column_count, structure.column_order
 [sqlfluff:templater:dbt]
 profiles_dir = ./dbt_project
 project_dir = ./dbt_project
+target = ci
 
 [sqlfluff:indentation]
 tab_space_size = 4
