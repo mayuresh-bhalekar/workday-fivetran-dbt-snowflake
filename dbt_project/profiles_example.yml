@@ -28,6 +28,21 @@ workday_hr_analytics:
       schema: "{{ env_var('SNOWFLAKE_CI_SCHEMA', 'ci') }}"
       threads: 4
 
+    airflow:
+      # Used when dbt is invoked by the Airflow DAG (airflow/dags/workday_hr_analytics_dag.py).
+      # These SNOWFLAKE_AIRFLOW_* env vars are set at task-execution time from the
+      # `snowflake_default` Airflow Connection (Admin -> Connections) — never hardcoded
+      # in the DAG or this file. See airflow/README.md.
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT', 'your_account_identifier') }}"
+      user: "{{ env_var('SNOWFLAKE_AIRFLOW_USER', 'your_airflow_service_user') }}"
+      password: "{{ env_var('SNOWFLAKE_AIRFLOW_PASSWORD', '') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'DBT_TRANSFORMER') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'HR_ANALYTICS') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'WH_DBT_TRANSFORM') }}"
+      schema: "{{ env_var('SNOWFLAKE_AIRFLOW_SCHEMA', 'orchestrated') }}"
+      threads: 4
+
     prod:
       type: snowflake
       account: "{{ env_var('SNOWFLAKE_ACCOUNT', 'your_account_identifier') }}"
