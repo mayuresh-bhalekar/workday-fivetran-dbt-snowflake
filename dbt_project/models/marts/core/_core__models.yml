@@ -7,6 +7,24 @@ models:
       job/department/manager/comp version. Join facts to the row where
       fact_date between valid_from and valid_to for point-in-time accuracy,
       or filter is_current = true for "as of today".
+    meta:
+      metrics:
+        employee_count:
+          type: count
+          sql: ${employee_id}
+          label: Employee Count
+          description: Count of employee dimension rows (filter is_current for headcount).
+        distinct_employee_count:
+          type: count_distinct
+          sql: ${employee_id}
+          label: Distinct Employees
+          description: Distinct employees, safe to use without an is_current filter (e.g. new hires by month) since dim_employee has multiple SCD2 rows per employee.
+        avg_tenure_years:
+          type: average
+          sql: datediff('year', ${hire_date}, coalesce(${termination_date}, current_date()))
+          label: Average Tenure (Years)
+          description: Average years from hire date to termination date, or to today for active employees.
+          round: 1
     columns:
       - name: employee_key
         description: Surrogate key (employee_id + valid_from hash). Grain PK.
@@ -14,6 +32,18 @@ models:
       - name: employee_id
         description: Workday natural key.
         tests: [not_null]
+      - name: full_name
+        description: Employee's full name.
+      - name: job_title
+        description: Denormalized job title, joined from dim_position.
+      - name: department_name
+        description: Denormalized department name, joined from dim_department.
+      - name: location_name
+        description: Denormalized location name, joined from dim_location.
+      - name: hire_date
+        description: Date the employee was hired.
+      - name: termination_date
+        description: Date the employee was terminated, null if still employed.
       - name: worker_status
         tests:
           - accepted_values:

@@ -102,7 +102,7 @@ workday-fivetran-dbt-snowflake/
 |---|---|---|
 | **Ingest** | [`snowflake/*.sql`](snowflake) | DDL that stands up the database, three warehouses (load / transform / BI), and the `RAW.WORKDAY_*` tables, plus a script to bulk-load the sample CSVs — lets the repo run standalone without a live Fivetran connection. |
 | **Staging** | [`models/staging/workday/`](dbt_project/models/staging/workday) | Seven `stg_workday__*` views: 1:1 with each RAW source, renamed to snake_case, typed, deleted-row filtering (`where not _fivetran_deleted`). No joins, no aggregation. |
-| **Intermediate** | [`models/intermediate/`](dbt_project/models/intermediate) | `int_workers_joined_positions` — a worker/position/department/location join. **Currently orphaned**: no downstream model `ref()`s it — see [§8 Data lineage findings](#8-data-lineage-findings). |
+| **Intermediate** | [`models/intermediate/`](dbt_project/models/intermediate) | `int_workers_joined_positions` — a worker/position/department/location join. **Currently orphaned**: no downstream model `ref()`s it — see [§9 Data lineage findings](#9-data-lineage-findings). |
 | **Dimensions** | [`models/marts/core/`](dbt_project/models/marts/core) | `dim_employee` (SCD Type 2, built from a snapshot), `dim_department`, `dim_position`, `dim_location`, `dim_date` (SCD1 / generated) — conformed across every fact. |
 | **Facts** | [`models/marts/hr/`](dbt_project/models/marts/hr) | `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment` — atomic grain, additive measures, incremental materialization keyed on `_fivetran_synced`. |
 | **History** | [`snapshots/snap_workers.sql`](dbt_project/snapshots/snap_workers.sql) | dbt snapshot with a timestamp strategy — captures every job/department/manager/comp change to `stg_workday__workers` as it happens, the raw material `dim_employee` is built from. |
@@ -146,7 +146,30 @@ dbt docs generate && dbt docs serve
 
 In a real deployment, step 2 is performed by the **Fivetran Workday connector** on a schedule (see [`docs/architecture.md#2-fivetran-connector`](docs/architecture.md)) — the SQL here exists purely so this repo is runnable standalone without a live Fivetran account.
 
-## 7. Execution flow, start to finish
+## 7. BI dashboard (Lightdash)
+
+A self-hosted [Lightdash](https://www.lightdash.com/) instance sits on top of `MARTS_CORE` / `MARTS_HR`, giving each dbt model an explore with auto-generated dimensions and metrics defined via `meta:` blocks in the model `.yml` files (see `dim_employee`, `fact_pay` under [`models/marts/`](dbt_project/models/marts)).
+
+![Workday HR Overview dashboard in Lightdash](docs/images/lightdash-dashboard.jpg)
+
+The `Workday HR Overview` dashboard covers headcount, hiring trend, pay trend, attrition, average tenure, and a full employee roster — six widgets built entirely on documented dbt columns and `meta.metrics`, no manual SQL in the BI layer.
+
+To stand it up yourself:
+
+```bash
+git clone https://github.com/lightdash/lightdash && cd lightdash
+cp .env.example .env   # set LIGHTDASH_SECRET, PGPASSWORD, and PORT if 8080 is taken
+docker compose -f docker-compose.yml --env-file .env up --detach --remove-orphans
+
+npm install -g @lightdash/cli
+lightdash login http://localhost:<port> --token <personal-access-token>
+lightdash deploy --create "Workday HR Analytics" \
+  --project-dir dbt_project --profiles-dir dbt_project --ignore-errors
+```
+
+Then add the Snowflake warehouse credentials once in **Project Settings → Connection settings** (the CLI deploy only compiles and pushes explores; the server needs its own copy of the credentials to run live queries).
+
+## 8. Execution flow, start to finish
 
 Two flows run this repo: the **data pipeline** (production cadence) and **CI** (every pull request).
 
@@ -155,10 +178,10 @@ Two flows run this repo: the **data pipeline** (production cadence) and **CI** (
 3. **`dbt seed` & `dbt snapshot` run** — `dbt seed` refreshes static lookups; `dbt snapshot` compares `stg_workday__workers` against `snap_workers` and inserts new SCD2 history rows for anything that changed. Trigger: after Fivetran sync completes (webhook or freshness poll).
 4. **`dbt run` builds staging → intermediate → marts** — staging views normalize RAW; `int_workers_joined_positions` joins worker and position; marts materialize `dim_*` (table) and `fact_*` (incremental) from the snapshot and staging layers.
 5. **`dbt test` validates the build** — schema tests on every PK/FK plus singular business-rule tests run before the build is considered good; a failure blocks the marts from being trusted downstream.
-6. **BI queries the marts** — Tableau/Looker/Power BI or ad-hoc SQL hits `MARTS_CORE` / `MARTS_HR` through the isolated `WH_BI_QUERY` warehouse — never touching RAW or STAGING directly.
+6. **BI queries the marts** — Lightdash (see [§7](#7-bi-dashboard-lightdash)), or any other tool (Tableau/Looker/Power BI/ad-hoc SQL), hits `MARTS_CORE` / `MARTS_HR` through the isolated `WH_BI_QUERY` warehouse — never touching RAW or STAGING directly.
 7. **In parallel, every pull request:** GitHub Actions lints changed models with sqlfluff, then runs `dbt deps → seed → snapshot → build` against a dedicated Snowflake `ci` schema — the same DAG as production, run on synthetic data before merge.
 
-## 8. Data lineage findings
+## 9. Data lineage findings
 
 A model-by-model trace of every `ref()`/`source()` in `dbt_project/` (sources → staging → intermediate → snapshot → dims → facts) turned up a few things worth knowing before you build on this repo:
 
@@ -213,8 +236,8 @@ flowchart TB
         F_BEN["fact_benefits_enrollment"]
     end
 
-    SEMX["Semantic layer<br/>— not present in repo"]
-    DASHX["Dashboards<br/>Tableau · Looker · Power BI<br/>— not present in repo"]
+    SEMX["Semantic layer<br/>Lightdash — dbt meta.metrics"]
+    DASHX["Dashboard<br/>Lightdash — see §7"]
 
     S_WORK --> T_WORK
     S_POS --> T_POS
@@ -250,15 +273,15 @@ flowchart TB
     D_DATE -.->|"date_key value match"| F_PAY
     D_DATE -.->|"date_key value match"| F_BEN
 
-    D_EMP -.-> SEMX
-    D_DEPT -.-> SEMX
-    D_POS -.-> SEMX
-    D_LOC -.-> SEMX
-    D_DATE -.-> SEMX
-    F_HRS -.-> SEMX
-    F_PAY -.-> SEMX
-    F_BEN -.-> SEMX
-    SEMX -.-> DASHX
+    D_EMP --> SEMX
+    D_DEPT --> SEMX
+    D_POS --> SEMX
+    D_LOC --> SEMX
+    D_DATE --> SEMX
+    F_HRS --> SEMX
+    F_PAY --> SEMX
+    F_BEN --> SEMX
+    SEMX --> DASHX
 
     classDef raw fill:#e9e9e6,stroke:#6b6f76,color:#1c2430;
     classDef stg fill:#eef0ea,stroke:#c5c9bd,color:#1c2430;
@@ -266,7 +289,7 @@ flowchart TB
     classDef snap fill:#e3ebf5,stroke:#35578f,color:#1c2430;
     classDef dim fill:#e3ebf5,stroke:#35578f,color:#1c2430;
     classDef fact fill:#f5e6db,stroke:#b5622c,color:#1c2430;
-    classDef notbuilt fill:transparent,stroke:#8791a0,color:#8791a0,stroke-dasharray: 4 3;
+    classDef bi fill:#e6f0ea,stroke:#2c8f52,color:#1c2430;
 
     class S_WORK,S_POS,S_DEPT,S_LOC,S_TIME,S_PAY,S_BEN raw;
     class T_WORK,T_POS,T_DEPT,T_LOC,T_TIME,T_PAY,T_BEN stg;
@@ -274,10 +297,10 @@ flowchart TB
     class SNAP snap;
     class D_EMP,D_DEPT,D_POS,D_LOC,D_DATE dim;
     class F_HRS,F_PAY,F_BEN fact;
-    class SEMX,DASHX notbuilt;
+    class SEMX,DASHX bi;
 ```
 
-## 9. What this demonstrates (for reviewers)
+## 10. What this demonstrates (for reviewers)
 
 - Kimball dimensional modeling: conformed `dim_employee`, `dim_department`, `dim_position`, `dim_date`; atomic-grain `fact_hours_worked`, `fact_pay`, `fact_benefits_enrollment`
 - SCD Type 2 on `dim_employee` via a dbt snapshot (job/comp/manager history), SCD Type 1 on low-cardinality reference dims
@@ -286,6 +309,6 @@ flowchart TB
 - Snowflake specifics: clustering keys on large facts, a right-sized warehouse per workload, `COPY INTO` bulk load, RAW/STAGING/ANALYTICS schema separation
 - CI: lint (sqlfluff) + `dbt build` against a Snowflake CI database on every PR
 
-## 10. License
+## 11. License
 
 MIT — see [`LICENSE`](LICENSE). Sample data is entirely synthetic; no real Workday tenant or employee data is used.

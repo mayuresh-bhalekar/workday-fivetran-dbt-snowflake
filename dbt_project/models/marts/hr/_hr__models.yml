@@ -35,8 +35,15 @@ models:
           - relationships:
               to: ref('dim_employee')
               field: employee_key
+      - name: pay_period_end_date
+        description: Last day of the pay period this result was paid in.
       - name: amount
         tests: [not_null]
+        meta:
+          metrics:
+            total_pay:
+              type: sum
+              label: Total Pay
 
   - name: fact_benefits_enrollment
     description: >
