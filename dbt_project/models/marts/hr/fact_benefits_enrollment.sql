@@ -16,7 +16,10 @@ with enrollments as (
     select * from {{ ref('stg_workday__benefits_enrollment') }}
 
     {% if is_incremental() %}
-    where _fivetran_synced > (select coalesce(max(_fivetran_synced), '1900-01-01') from {{ this }})
+        where _fivetran_synced > (
+            select coalesce(max(_fivetran_synced), '1900-01-01')
+            from {{ this }}
+        )
     {% endif %}
 
 ),

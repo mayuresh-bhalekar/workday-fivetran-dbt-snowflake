@@ -1,7 +1,15 @@
 [sqlfluff]
 templater = dbt
 dialect = snowflake
-exclude_rules = ambiguous.column_count, structure.column_order
+exclude_rules = ambiguous.column_count, structure.column_order,
+    references.qualification, references.consistent
+# references.qualification (RF02) / references.consistent (RF03) fight each
+# other on every dbt is_incremental() filter of the form
+# `where _fivetran_synced > (select max(_fivetran_synced) from {{ this }})`:
+# unqualified trips RF02 ("ambiguous — two tables in scope", counting the
+# correlated subquery's {{ this }}), qualifying it then trips RF03
+# ("inconsistent with the surrounding `select *`"). No single style
+# satisfies both, so both are excluded rather than fought per-model.
 
 [sqlfluff:templater:dbt]
 profiles_dir = ./dbt_project
