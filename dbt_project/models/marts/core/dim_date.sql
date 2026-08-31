@@ -1,7 +1,8 @@
 {{ config(materialized='table') }}
 
 -- Generated calendar spine, no source dependency. Covers a wide static range
--- so it never needs to be extended on every run; cheap to materialize as a table.
+-- so it never needs to be extended on every run; cheap to materialize as a
+-- table.
 
 with spine as (
 

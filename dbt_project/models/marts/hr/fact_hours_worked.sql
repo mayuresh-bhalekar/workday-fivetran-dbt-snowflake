@@ -30,19 +30,23 @@ dim_employee_current as (
 final as (
 
     select
-        {{ dbt_utils.generate_surrogate_key(['time_entries.time_entry_id']) }} as hours_worked_key,
+        {{ dbt_utils.generate_surrogate_key(['time_entries.time_entry_id']) }}
+            as hours_worked_key,
         time_entries.time_entry_id,
         time_entries.employee_id,
         dim_employee_current.employee_key,
         time_entries.entry_date,
-        {{ dbt_utils.generate_surrogate_key(['time_entries.entry_date']) }} as date_key,
+        {{ dbt_utils.generate_surrogate_key(['time_entries.entry_date']) }}
+            as date_key,
         time_entries.time_type,
         time_entries.hours_worked,
         time_entries.overtime_hours,
-        (time_entries.hours_worked + time_entries.overtime_hours) as total_hours,
+        (time_entries.hours_worked + time_entries.overtime_hours)
+            as total_hours,
         time_entries._fivetran_synced
     from time_entries
-    left join dim_employee_current on time_entries.employee_id = dim_employee_current.employee_id
+    left join dim_employee_current
+        on time_entries.employee_id = dim_employee_current.employee_id
 
 )
 

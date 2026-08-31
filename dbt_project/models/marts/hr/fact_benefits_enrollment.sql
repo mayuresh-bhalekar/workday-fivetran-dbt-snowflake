@@ -31,7 +31,8 @@ dim_employee_current as (
 final as (
 
     select
-        {{ dbt_utils.generate_surrogate_key(['enrollments.enrollment_id']) }} as benefits_enrollment_key,
+        {{ dbt_utils.generate_surrogate_key(['enrollments.enrollment_id']) }}
+            as benefits_enrollment_key,
         enrollments.enrollment_id,
         enrollments.employee_id,
         dim_employee_current.employee_key,
@@ -40,10 +41,12 @@ final as (
         enrollments.coverage_level,
         enrollments.coverage_amount,
         enrollments.effective_date,
-        {{ dbt_utils.generate_surrogate_key(['enrollments.effective_date']) }} as date_key,
+        {{ dbt_utils.generate_surrogate_key(['enrollments.effective_date']) }}
+            as date_key,
         enrollments._fivetran_synced
     from enrollments
-    left join dim_employee_current on enrollments.employee_id = dim_employee_current.employee_id
+    left join dim_employee_current
+        on enrollments.employee_id = dim_employee_current.employee_id
 
 )
 
