@@ -36,12 +36,15 @@ locations as (
 final as (
 
     select
-        {{ dbt_utils.generate_surrogate_key(['workers_history.employee_id', 'workers_history.dbt_valid_from']) }}
+        {{ dbt_utils.generate_surrogate_key([
+            'workers_history.employee_id', 'workers_history.dbt_valid_from'
+        ]) }}
             as employee_key,
         workers_history.employee_id,
         workers_history.first_name,
         workers_history.last_name,
-        workers_history.first_name || ' ' || workers_history.last_name as full_name,
+        workers_history.first_name || ' ' || workers_history.last_name
+            as full_name,
         workers_history.hire_date,
         workers_history.termination_date,
         workers_history.worker_status,
@@ -62,9 +65,12 @@ final as (
         workers_history.dbt_valid_to as valid_to,
         (workers_history.dbt_valid_to is null) as is_current
     from workers_history
-    left join positions on workers_history.position_id = positions.position_id
-    left join departments on workers_history.department_id = departments.department_id
-    left join locations on workers_history.location_id = locations.location_id
+    left join positions
+        on workers_history.position_id = positions.position_id
+    left join departments
+        on workers_history.department_id = departments.department_id
+    left join locations
+        on workers_history.location_id = locations.location_id
 
 )
 

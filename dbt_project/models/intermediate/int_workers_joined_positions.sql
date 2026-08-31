@@ -51,9 +51,9 @@ joined as (
         locations.country,
         locations.time_zone
     from workers
-    left join positions using (position_id)
-    left join departments using (department_id)
-    left join locations using (location_id)
+    left join positions on workers.position_id = positions.position_id
+    left join departments on workers.department_id = departments.department_id
+    left join locations on workers.location_id = locations.location_id
 
 )
 
