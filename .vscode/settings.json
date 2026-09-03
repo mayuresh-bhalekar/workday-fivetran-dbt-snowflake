@@ -1,4 +1,23 @@
 {
-  "python.defaultInterpreterPath": "~/.venvs/dbt-snowflake/bin/python3.12",
-  "python.terminal.activateEnvironment": true
+  // Point at this repo's OWN venv (.venv, Python 3.12, has dbt 1.12.3).
+  // Two traps this avoids:
+  //   1. VS Code does NOT expand "~" in interpreter paths — a tilde here fails
+  //      to resolve and silently falls back to system Python.
+  //   2. That fallback is /usr/local/bin/python3 = Python 3.14, which HAS dbt
+  //      installed but crashes on import (mashumaro UnserializableField).
+  //      The dbt Power User extension reports that crash as "dbt not found".
+  // NOTE: a previously-cached interpreter choice in VS Code's workspace state
+  // overrides the setting below. If dbt is still "not found" after a reload,
+  // run "Python: Select Interpreter" and pick .venv explicitly.
+  // ${workspaceFolder} is deliberate, not a shortcut: this file is committed, so
+  // it must not hardcode one machine's home directory. Verified the extension
+  // substitutes this variable in its own settings (it does a literal
+  // replace of "${workspaceFolder}" before use), so it resolves correctly here.
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "dbt.dbtPythonPathOverride": "${workspaceFolder}/.venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.envFile": "${workspaceFolder}/dbt_project/.env",
+  "terminal.integrated.env.osx": {
+    "DBT_PROFILES_DIR": "${env:HOME}/.dbt"
+  }
 }
