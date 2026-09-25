@@ -4,6 +4,8 @@ A production-shaped reference implementation of a multi-domain Workday analytics
 
 This repo is a **portfolio/demo project**. It ships realistic (synthetic) Workday-shaped sample data, complete Snowflake DDL, and a working dbt project (staging → intermediate → marts) with tests, docs, a SCD2 snapshot, and CI — so it can be cloned and run end-to-end against any Snowflake trial account.
 
+**Live demo:** [workday-hr-analytics.streamlit.app](https://workday-hr-analytics.streamlit.app/). A Streamlit app querying the dbt marts live in Snowflake (see [§7, "Streamlit app"](#streamlit-app)). It runs on synthetic data on a Snowflake trial account, so it may be offline.
+
 ---
 
 ## 1. The business problem
@@ -179,6 +181,8 @@ lightdash deploy --create "Workday HR Analytics" \
 Then add the Snowflake warehouse credentials once in **Project Settings → Connection settings** (the CLI deploy only compiles and pushes explores; the server needs its own copy of the credentials to run live queries).
 
 ### Streamlit app
+
+**Live:** [https://workday-hr-analytics.streamlit.app/](https://workday-hr-analytics.streamlit.app/) (hosted on Streamlit Community Cloud; offline if the Snowflake trial account is suspended).
 
 [`streamlit_app/`](streamlit_app) is a Streamlit app that queries the marts live in Snowflake (Snowflake is its only data source) as the read-only `BI_READER` role on `WH_BI_QUERY`:
 
