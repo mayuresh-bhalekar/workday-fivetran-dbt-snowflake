@@ -12,7 +12,12 @@ import json
 
 import streamlit as st
 
-from lib.connection import get_session, marts_schema
+from lib.connection import (
+    get_session,
+    is_expired_session_error,
+    marts_schema,
+    reset_session,
+)
 
 
 @st.cache_data(ttl=600, show_spinner="Querying Snowflake...")
@@ -26,10 +31,21 @@ def run(sql, params=()):
     try:
         return _run_cached(sql, tuple(params))
     except Exception as exc:
-        st.error(f"Snowflake query failed:\n\n{exc}")
-        with st.expander("SQL"):
-            st.code(sql, language="sql")
-        st.stop()
+        if not is_expired_session_error(exc):
+            _show_error(sql, exc)
+        # Idle session expired: reconnect once and retry.
+        reset_session()
+        try:
+            return _run_cached(sql, tuple(params))
+        except Exception as retry_exc:
+            _show_error(sql, retry_exc)
+
+
+def _show_error(sql, exc):
+    st.error(f"Snowflake query failed:\n\n{exc}")
+    with st.expander("SQL"):
+        st.code(sql, language="sql")
+    st.stop()
 
 
 def _json_list(values):

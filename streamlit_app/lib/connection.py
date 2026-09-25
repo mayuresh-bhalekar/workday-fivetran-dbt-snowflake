@@ -60,6 +60,26 @@ def get_session():
         st.stop()
 
 
+# Snowflake ends idle sessions after a few hours (390114: token expired,
+# 390112: session no longer exists). The cached session then fails every
+# query until the app restarts, so detect it and reconnect.
+_EXPIRED_SESSION_CODES = ("390114", "390112")
+
+
+def is_expired_session_error(exc):
+    return any(code in str(exc) for code in _EXPIRED_SESSION_CODES)
+
+
+def reset_session():
+    _create_session.clear()
+    try:
+        # st.connection caches the underlying connector connection as well.
+        st.connection("snowflake", **_private_key_override()).reset()
+    except Exception:
+        # Streamlit in Snowflake: nothing to reset, the platform owns it.
+        pass
+
+
 def _schema_prefix():
     # Env var wins over secrets. Empty prefix = prod/ci schema names
     # (MARTS_CORE, ...); a dev target schema such as DEV_MAYURESH maps to
