@@ -4,6 +4,8 @@ A production-shaped reference implementation of a multi-domain Workday analytics
 
 This repo is a **portfolio/demo project**. It ships realistic (synthetic) Workday-shaped sample data, complete Snowflake DDL, and a working dbt project (staging → intermediate → marts) with tests, docs, a SCD2 snapshot, and CI — so it can be cloned and run end-to-end against any Snowflake trial account.
 
+**Live demo:** [workday-hr-analytics.streamlit.app](https://workday-hr-analytics.streamlit.app/). A Streamlit app querying the dbt marts live in Snowflake (see [§12](#12-streamlit-app)). It runs on synthetic data on a Snowflake trial account, so it may be offline.
+
 ---
 
 ## 1. The business problem
@@ -95,7 +97,7 @@ workday-fivetran-dbt-snowflake/
 │   ├── macros/
 │   ├── tests/                    # singular tests
 │   └── seeds/                    # small reference/lookup CSVs loaded via `dbt seed`
-├── streamlit_app/                # Streamlit app on the marts (see §7, "Streamlit app")
+├── streamlit_app/                # Streamlit app on the marts (see §12)
 └── .github/workflows/            # CI: sqlfluff lint + dbt build (on PR)
 ```
 
@@ -177,49 +179,6 @@ lightdash deploy --create "Workday HR Analytics" \
 ```
 
 Then add the Snowflake warehouse credentials once in **Project Settings → Connection settings** (the CLI deploy only compiles and pushes explores; the server needs its own copy of the credentials to run live queries).
-
-### Streamlit app
-
-[`streamlit_app/`](streamlit_app) is a Streamlit app that queries the marts live in Snowflake (Snowflake is its only data source) as the read-only `BI_READER` role on `WH_BI_QUERY`:
-
-- **Home**: headline KPIs (active headcount, total pay, hours worked, active students) and the connected role/warehouse/database.
-- **HR Overview**: headcount, hires vs terminations by month, tenure, and headcount by department and location, with department/location filters.
-- **Payroll ↔ GL Reconciliation**: payroll earnings vs GL Salaries Expense per cost center and pay period, with unreconciled rows highlighted. It uses the same logic as the `assert_payroll_reconciles_to_gl` dbt test.
-- **Employee Time Travel**: the `dim_employee` SCD2 version in effect on any date, plus the employee's full history.
-
-All SQL lives in [`streamlit_app/lib/queries.py`](streamlit_app/lib/queries.py). User-selected values are bind parameters, and results are cached for 10 minutes.
-
-**1. Grant access and create the app's service user.** In [`snowflake/03_streamlit_setup.sql`](snowflake/03_streamlit_setup.sql), generate the key pair using the `openssl` commands in its comments, paste the public key into the `ALTER USER` statement, then run the script in a Snowsight worksheet as `ACCOUNTADMIN`. It extends `BI_READER` to `MARTS_STUDENT` / `MARTS_FINANCE` and creates `STREAMLIT_APP_USER` (key-pair auth, no password). If your marts were only built with the dbt `dev` target, also run the optional dev-schema grants in section 1b.
-
-**2. Configure the connection.**
-
-```bash
-cp streamlit_app/.streamlit/secrets.toml.example streamlit_app/.streamlit/secrets.toml
-#    set account and private_key_file; set [app] marts_schema_prefix to your
-#    dbt dev schema (e.g. "DEV_MAYURESH") to read DEV_MAYURESH_MARTS_* instead
-#    of MARTS_*. secrets.toml and *.p8 are gitignored.
-```
-
-**3. Install and run** (Python 3.12, since Python 3.14 isn't supported by these pins):
-
-```bash
-python3.12 -m venv ~/.venvs/streamlit-app && source ~/.venvs/streamlit-app/bin/activate
-pip install -r streamlit_app/requirements.txt
-streamlit run streamlit_app/app.py
-```
-
-If the connection or a grant is missing, the page stops and shows the Snowflake error.
-
-**Publish on Streamlit Community Cloud** (public URL, free):
-
-1. Run [`snowflake/04_public_app_cost_controls.sql`](snowflake/04_public_app_cost_controls.sql) first. It shrinks `WH_BI_QUERY` to XSMALL / 1 cluster / 60s suspend and caps it with a 10-credit monthly resource monitor, so a public URL can't run up the bill.
-2. At [share.streamlit.io](https://share.streamlit.io), choose **Create app**, pick this repo and branch, set the main file path to `streamlit_app/app.py`, and choose Python 3.12 under **Advanced settings**.
-3. Paste your `secrets.toml` into **Advanced settings → Secrets**. There is no key file on their servers, so replace `private_key_file` with the key's contents: `private_key = """-----BEGIN PRIVATE KEY-----` … `-----END PRIVATE KEY-----"""`.
-4. Deploy. Anyone with the URL can see the (synthetic) data, and the app stops working if the Snowflake account is suspended.
-
-To deploy inside Snowflake instead (Streamlit in Snowflake), see the optional `CREATE STREAMLIT` section of `03_streamlit_setup.sql`; the app picks up the Snowflake-provided session automatically.
-
-<!-- Screenshot placeholder: docs/images/streamlit-app.png -->
 
 ## 8. Execution flow, start to finish
 
@@ -365,3 +324,52 @@ flowchart TB
 ## 11. License
 
 MIT — see [`LICENSE`](LICENSE). Sample data is entirely synthetic; no real Workday tenant or employee data is used.
+
+## 12. Streamlit app
+
+**Live:** [https://workday-hr-analytics.streamlit.app/](https://workday-hr-analytics.streamlit.app/) (hosted on Streamlit Community Cloud; offline if the Snowflake trial account is suspended).
+
+[`streamlit_app/`](streamlit_app) is a Streamlit app that queries the marts live in Snowflake (Snowflake is its only data source) as the read-only `BI_READER` role on `WH_BI_QUERY`:
+
+- **Home**: headline KPIs (active headcount, total pay, hours worked, active students) and the connected role/warehouse/database.
+- **HR Overview**: headcount, hires vs terminations by month, tenure, and headcount by department and location, with department/location filters.
+- **Payroll ↔ GL Reconciliation**: payroll earnings vs GL Salaries Expense per cost center and pay period, with unreconciled rows highlighted. It uses the same logic as the `assert_payroll_reconciles_to_gl` dbt test.
+- **Employee Time Travel**: the `dim_employee` SCD2 version in effect on any date, plus the employee's full history.
+
+All SQL lives in [`streamlit_app/lib/queries.py`](streamlit_app/lib/queries.py). User-selected values are bind parameters, and results are cached for 10 minutes.
+
+**1. Grant access and create the app's service user.** In [`snowflake/03_streamlit_setup.sql`](snowflake/03_streamlit_setup.sql), generate the key pair using the `openssl` commands in its comments, paste the public key into the `ALTER USER` statement, then run the script in a Snowsight worksheet as `ACCOUNTADMIN`. It extends `BI_READER` to `MARTS_STUDENT` / `MARTS_FINANCE` and creates `STREAMLIT_APP_USER` (key-pair auth, no password). If your marts were only built with the dbt `dev` target, also run the optional dev-schema grants in section 1b.
+
+**2. Configure the connection.**
+
+```bash
+cp streamlit_app/.streamlit/secrets.toml.example streamlit_app/.streamlit/secrets.toml
+#    set account and private_key_file; set [app] marts_schema_prefix to your
+#    dbt dev schema (e.g. "DEV_MAYURESH") to read DEV_MAYURESH_MARTS_* instead
+#    of MARTS_*. secrets.toml and *.p8 are gitignored.
+```
+
+**3. Install and run** (Python 3.12, since Python 3.14 isn't supported by these pins):
+
+```bash
+python3.12 -m venv ~/.venvs/streamlit-app && source ~/.venvs/streamlit-app/bin/activate
+pip install -r streamlit_app/requirements.txt
+streamlit run streamlit_app/app.py
+```
+
+If the connection or a grant is missing, the page stops and shows the Snowflake error.
+
+**Publish on Streamlit Community Cloud** (public URL, free):
+
+1. Run [`snowflake/04_public_app_cost_controls.sql`](snowflake/04_public_app_cost_controls.sql) first. It shrinks `WH_BI_QUERY` to XSMALL / 1 cluster / 60s suspend and caps it with a 10-credit monthly resource monitor, so a public URL can't run up the bill.
+2. At [share.streamlit.io](https://share.streamlit.io), choose **Create app**, pick this repo and branch, set the main file path to `streamlit_app/app.py`, and choose Python 3.12 under **Advanced settings**.
+3. Paste your `secrets.toml` into **Advanced settings → Secrets**. There is no key file on their servers, so replace `private_key_file` with the key's contents: `private_key = """-----BEGIN PRIVATE KEY-----` … `-----END PRIVATE KEY-----"""`.
+4. Deploy. Anyone with the URL can see the (synthetic) data, and the app stops working if the Snowflake account is suspended.
+
+To deploy inside Snowflake instead (Streamlit in Snowflake), see the optional `CREATE STREAMLIT` section of `03_streamlit_setup.sql`; the app picks up the Snowflake-provided session automatically.
+
+| Home | HR Overview |
+|---|---|
+| ![Streamlit home page: headline KPIs and connection status](docs/images/streamlit-home.png) | ![HR Overview: headcount KPIs, hires vs terminations, headcount by department and location](docs/images/streamlit-hr-overview.png) |
+| **Payroll ↔ GL Reconciliation** | **Employee Time Travel** |
+| ![Payroll vs GL reconciliation by cost center, all rows reconciled](docs/images/streamlit-payroll-gl-reconciliation.png) | ![Employee Time Travel: SCD2 version of an employee as of a date, plus full history](docs/images/streamlit-employee-time-travel.png) |
