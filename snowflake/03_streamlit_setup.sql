@@ -89,7 +89,7 @@ GRANT ROLE BI_READER TO USER STREAMLIT_APP_USER;
 --
 -- From the repo root, upload the app with SnowSQL / Snowflake CLI:
 --   PUT file://streamlit_app/app.py              @HR_ANALYTICS.APPS.STREAMLIT_STAGE/ AUTO_COMPRESS = FALSE OVERWRITE = TRUE;
---   PUT file://streamlit_app/environment.yml     @HR_ANALYTICS.APPS.STREAMLIT_STAGE/ AUTO_COMPRESS = FALSE OVERWRITE = TRUE;
+--   PUT file://snowflake/streamlit_in_snowflake/environment.yml @HR_ANALYTICS.APPS.STREAMLIT_STAGE/ AUTO_COMPRESS = FALSE OVERWRITE = TRUE;
 --   PUT file://streamlit_app/lib/*.py            @HR_ANALYTICS.APPS.STREAMLIT_STAGE/lib/ AUTO_COMPRESS = FALSE OVERWRITE = TRUE;
 --   PUT file://streamlit_app/pages/*.py          @HR_ANALYTICS.APPS.STREAMLIT_STAGE/pages/ AUTO_COMPRESS = FALSE OVERWRITE = TRUE;
 --
