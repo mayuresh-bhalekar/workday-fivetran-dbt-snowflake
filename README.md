@@ -208,7 +208,16 @@ pip install -r streamlit_app/requirements.txt
 streamlit run streamlit_app/app.py
 ```
 
-If the connection or a grant is missing, the page stops and shows the Snowflake error. To deploy inside Snowflake instead (Streamlit in Snowflake), see the optional `CREATE STREAMLIT` section of `03_streamlit_setup.sql`; the app picks up the Snowflake-provided session automatically.
+If the connection or a grant is missing, the page stops and shows the Snowflake error.
+
+**Publish on Streamlit Community Cloud** (public URL, free):
+
+1. Run [`snowflake/04_public_app_cost_controls.sql`](snowflake/04_public_app_cost_controls.sql) first. It shrinks `WH_BI_QUERY` to XSMALL / 1 cluster / 60s suspend and caps it with a 10-credit monthly resource monitor, so a public URL can't run up the bill.
+2. At [share.streamlit.io](https://share.streamlit.io), choose **Create app**, pick this repo and branch, set the main file path to `streamlit_app/app.py`, and choose Python 3.12 under **Advanced settings**.
+3. Paste your `secrets.toml` into **Advanced settings → Secrets**. There is no key file on their servers, so replace `private_key_file` with the key's contents: `private_key = """-----BEGIN PRIVATE KEY-----` … `-----END PRIVATE KEY-----"""`.
+4. Deploy. Anyone with the URL can see the (synthetic) data, and the app stops working if the Snowflake account is suspended.
+
+To deploy inside Snowflake instead (Streamlit in Snowflake), see the optional `CREATE STREAMLIT` section of `03_streamlit_setup.sql`; the app picks up the Snowflake-provided session automatically.
 
 <!-- Screenshot placeholder: docs/images/streamlit-app.png -->
 

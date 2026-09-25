@@ -25,7 +25,31 @@ def _create_session():
         return get_active_session()
     except Exception:
         # Not running inside Streamlit in Snowflake: use secrets.toml.
-        return st.connection("snowflake").session()
+        return st.connection("snowflake", **_private_key_override()).session()
+
+
+def _private_key_override():
+    # Hosted deploys (e.g. Streamlit Community Cloud) have no key file on
+    # disk, so the key is stored in secrets as PEM text instead:
+    #   private_key = """-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"""
+    # The connector wants DER bytes, so convert it. Locally, private_key_file
+    # is used and nothing is overridden.
+    try:
+        pem = st.secrets["connections"]["snowflake"].get("private_key")
+    except Exception:
+        return {}
+    if not pem or "BEGIN" not in pem:
+        return {}
+
+    from cryptography.hazmat.primitives import serialization
+
+    key = serialization.load_pem_private_key(pem.encode(), password=None)
+    der = key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return {"private_key": der}
 
 
 def get_session():
