@@ -7,3 +7,5 @@ __pycache__/
 .DS_Store
 *.pyc
 .env
+**/.streamlit/secrets.toml
+*.p8

@@ -95,6 +95,7 @@ workday-fivetran-dbt-snowflake/
 │   ├── macros/
 │   ├── tests/                    # singular tests
 │   └── seeds/                    # small reference/lookup CSVs loaded via `dbt seed`
+├── streamlit_app/                # Streamlit app on the marts (see §7, "Streamlit app")
 └── .github/workflows/            # CI: sqlfluff lint + dbt build (on PR)
 ```
 
@@ -176,6 +177,40 @@ lightdash deploy --create "Workday HR Analytics" \
 ```
 
 Then add the Snowflake warehouse credentials once in **Project Settings → Connection settings** (the CLI deploy only compiles and pushes explores; the server needs its own copy of the credentials to run live queries).
+
+### Streamlit app
+
+[`streamlit_app/`](streamlit_app) is a Streamlit app that queries the marts live in Snowflake (Snowflake is its only data source) as the read-only `BI_READER` role on `WH_BI_QUERY`:
+
+- **Home**: headline KPIs (active headcount, total pay, hours worked, active students) and the connected role/warehouse/database.
+- **HR Overview**: headcount, hires vs terminations by month, tenure, and headcount by department and location, with department/location filters.
+- **Payroll ↔ GL Reconciliation**: payroll earnings vs GL Salaries Expense per cost center and pay period, with unreconciled rows highlighted. It uses the same logic as the `assert_payroll_reconciles_to_gl` dbt test.
+- **Employee Time Travel**: the `dim_employee` SCD2 version in effect on any date, plus the employee's full history.
+
+All SQL lives in [`streamlit_app/lib/queries.py`](streamlit_app/lib/queries.py). User-selected values are bind parameters, and results are cached for 10 minutes.
+
+**1. Grant access and create the app's service user.** In [`snowflake/03_streamlit_setup.sql`](snowflake/03_streamlit_setup.sql), generate the key pair using the `openssl` commands in its comments, paste the public key into the `ALTER USER` statement, then run the script in a Snowsight worksheet as `ACCOUNTADMIN`. It extends `BI_READER` to `MARTS_STUDENT` / `MARTS_FINANCE` and creates `STREAMLIT_APP_USER` (key-pair auth, no password). If your marts were only built with the dbt `dev` target, also run the optional dev-schema grants in section 1b.
+
+**2. Configure the connection.**
+
+```bash
+cp streamlit_app/.streamlit/secrets.toml.example streamlit_app/.streamlit/secrets.toml
+#    set account and private_key_file; set [app] marts_schema_prefix to your
+#    dbt dev schema (e.g. "DEV_MAYURESH") to read DEV_MAYURESH_MARTS_* instead
+#    of MARTS_*. secrets.toml and *.p8 are gitignored.
+```
+
+**3. Install and run** (Python 3.12, since Python 3.14 isn't supported by these pins):
+
+```bash
+python3.12 -m venv ~/.venvs/streamlit-app && source ~/.venvs/streamlit-app/bin/activate
+pip install -r streamlit_app/requirements.txt
+streamlit run streamlit_app/app.py
+```
+
+If the connection or a grant is missing, the page stops and shows the Snowflake error. To deploy inside Snowflake instead (Streamlit in Snowflake), see the optional `CREATE STREAMLIT` section of `03_streamlit_setup.sql`; the app picks up the Snowflake-provided session automatically.
+
+<!-- Screenshot placeholder: docs/images/streamlit-app.png -->
 
 ## 8. Execution flow, start to finish
 
