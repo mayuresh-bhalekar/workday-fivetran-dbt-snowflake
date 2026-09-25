@@ -1,0 +1,12 @@
+# Streamlit in Snowflake (SiS) package list, used only when the app is deployed
+# with CREATE STREAMLIT (see snowflake/03_streamlit_setup.sql). SiS provides
+# streamlit and snowflake-snowpark-python itself; packages resolve from the
+# Snowflake Anaconda channel, so pins may lag requirements.txt.
+# Kept out of streamlit_app/ on purpose: Streamlit Community Cloud prefers an
+# environment.yml over requirements.txt and would skip the Snowflake packages.
+name: workday_hr_analytics
+channels:
+  - snowflake
+dependencies:
+  - pandas
+  - altair

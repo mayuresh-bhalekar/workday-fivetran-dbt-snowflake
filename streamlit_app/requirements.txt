@@ -1,0 +1,6 @@
+# Python 3.12 (system Python 3.14 is not supported by these pins).
+streamlit==1.64.0
+snowflake-connector-python[pandas]==4.7.5
+snowflake-snowpark-python==1.55.0
+pandas==2.3.3
+altair==6.3.0
