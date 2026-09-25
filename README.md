@@ -223,7 +223,11 @@ If the connection or a grant is missing, the page stops and shows the Snowflake 
 
 To deploy inside Snowflake instead (Streamlit in Snowflake), see the optional `CREATE STREAMLIT` section of `03_streamlit_setup.sql`; the app picks up the Snowflake-provided session automatically.
 
-<!-- Screenshot placeholder: docs/images/streamlit-app.png -->
+| Home | HR Overview |
+|---|---|
+| ![Streamlit home page: headline KPIs and connection status](docs/images/streamlit-home.png) | ![HR Overview: headcount KPIs, hires vs terminations, headcount by department and location](docs/images/streamlit-hr-overview.png) |
+| **Payroll ↔ GL Reconciliation** | **Employee Time Travel** |
+| ![Payroll vs GL reconciliation by cost center, all rows reconciled](docs/images/streamlit-payroll-gl-reconciliation.png) | ![Employee Time Travel: SCD2 version of an employee as of a date, plus full history](docs/images/streamlit-employee-time-travel.png) |
 
 ## 8. Execution flow, start to finish
 
